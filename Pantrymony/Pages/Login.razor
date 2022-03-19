@@ -1,0 +1,49 @@
+@page "/login"
+@using Microsoft.AspNetCore.Components
+@using Pantrymony.Model
+@using System.Diagnostics
+@inject HttpClient _http
+@inject IJSRuntime _jsr
+
+<h3>Login</h3>
+
+<p>@message</p>
+
+<EditForm Model="user" OnValidSubmit="OnValid" style="max-width:500px;">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-2">
+        <InputText class="form-control" @bind-Value="user.email" placeholder="Enter Email"></InputText>
+    </div>
+    <div class="mb-2">
+        <InputText type="password" class="form-control" @bind-Value="user.password" placeholder="Enter Password"></InputText>
+    </div>
+    <div class="mb-2 text-right">
+        <button class="btn btn-secondary" disabled="@isDisabled">login</button>
+    </div>
+</EditForm>
+
+@code {
+    UserLogin user = new();
+    
+    string message = string.Empty;
+    bool isDisabled = false;
+
+    private async Task OnValid()
+    {
+        Console.WriteLine("Validated!");
+        Debug.WriteLine("Validated!");
+        isDisabled = true;
+        using (var msg = await _http.PostAsJsonAsync("/api/auth/login", user, CancellationToken.None))
+        {
+            if (msg.IsSuccessStatusCode)
+            {
+                LoginResult result = await msg.Content.ReadFromJsonAsync<LoginResult>();
+                message = result.message;
+                isDisabled = false;
+                if (result.success)
+                    await _jsr.InvokeVoidAsync("localStorage.setItem", "user", $"{result.email};{result.jwtBearer}").ConfigureAwait(false);
+            }
+        }
+    }
+}
