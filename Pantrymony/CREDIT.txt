@@ -1,0 +1,4 @@
+- Serverless Blazor App in AWS
+https://aws.amazon.com/blogs/developer/run-blazor-based-net-web-applications-on-aws-serverless/
+- OAuth0 with Blazor
+https://auth0.com/blog/securing-blazor-webassembly-apps/#Registering-the-Blazor-WASM-App-with-Auth0

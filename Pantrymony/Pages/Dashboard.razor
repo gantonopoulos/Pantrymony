@@ -1,0 +1,92 @@
+@page "/"
+@inject NavigationManager UriHelper
+
+@attribute [Authorize] 
+
+<PageTitle>My Pantry</PageTitle>
+
+<h1>My Products</h1>
+
+<button class="btn btn-primary" @onclick="AddNewEntry">Add</button>
+<button class="btn btn-primary" @onclick="DeleteSelectedEntries">Delete</button>
+<button class="btn btn-primary" @onclick="EditSelectedEntry" >Edit</button>
+
+
+<table class="table">
+    <ul>
+        @foreach (PantryEntry pantryEntry in entries)
+        {
+            <tr class="form-group">
+                <td><input type="checkbox" @onclick="() => { EntrySelected(pantryEntry); }"/></td>
+                <td><span class="col-form-label">@pantryEntry.name</span></td>
+                <td><img src="@pantryEntry.imageUrl" alt=""></td>
+                <td><label>Quantity:@pantryEntry.quantity</label></td>
+                <td><button class="btn btn-primary" @onclick="() => { IncrementQuantity(pantryEntry); }">+</button></td>
+                <td><button class="btn btn-primary" @onclick="() => { DecrementQuantity(pantryEntry); }">-</button></td>
+            </tr>
+        }
+    </ul>
+</table>
+
+@code {
+    public class Unit
+    {
+        public string name;
+
+        public static Unit Kg = new() { name = "kg" };
+        public static Unit Ml = new() { name = "ml" };
+    }
+    
+    public class PantryEntry
+    {
+        public Guid identifier;
+        public string name;
+        public string imageUrl;
+        public ushort quantity;
+        public double calories;
+        public double protein;
+        public double fat;
+        public double carbs;
+        public Unit unit;
+    }
+
+    private List<PantryEntry> entries = new List<PantryEntry>
+    {
+        new() { identifier = Guid.NewGuid(), name = "Fakes", imageUrl = "Lentils.jpg", quantity = 2, carbs = 45, fat = 1, protein = 30, calories = 150, unit = Unit.Kg },
+        new() { identifier = Guid.NewGuid(), name = "Milk", imageUrl = "Milk.jpg", quantity = 4, carbs = 12, fat = 10, protein = 40, calories = 100, unit = Unit.Ml }
+    };
+
+    
+    private void IncrementQuantity(PantryEntry entry)
+    {
+        entry.quantity++;
+        //Notify db about quantity increase
+    }
+
+    private void DecrementQuantity(PantryEntry entry)
+    {
+        entry.quantity--;
+    //Notify db about quantity decrease
+    }
+
+    private void AddNewEntry()
+    {
+        throw new NotImplementedException();
+    }
+
+    private void DeleteSelectedEntries()
+    {
+        throw new NotImplementedException();
+    }
+
+    private void EntrySelected(PantryEntry pantryEntry)
+    {
+        
+    }
+
+    private void EditSelectedEntry()
+    {
+        UriHelper.NavigateTo($"editor/{entries.First().identifier}");
+    }
+
+}

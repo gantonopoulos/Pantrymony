@@ -1,0 +1,101 @@
+@page "/editor/{identifier}"
+
+<PageTitle>Add/Edit entry</PageTitle>
+
+<h3>Editor (@identifier)</h3>
+
+<table class="table">
+    <tr class="form-group">
+        <td>
+            <img src="@editedEntry.imageUrl" alt="">
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+            <span class="col-form-label">@editedEntry.name</span>
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+            <label>Quantity:@editedEntry.quantity</label>
+            <button class="btn btn-outline-primary" @onclick="() => { IncrementQuantity(editedEntry); }">+</button>
+            <button class="btn btn-outline-primary" @onclick="() => { DecrementQuantity(editedEntry); }">-</button>
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+            <span class="col-form-label">KCal/100 units</span>
+        </td>
+        <td>
+            <input type="number" class="input-group" @bind="editedEntry.calories"/>
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+            <span class="col-form-label">Protein %</span>
+        </td>
+        <td>
+            <input type="number" class="input-group" @bind="editedEntry.protein"/>
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+            <span class="col-form-label">Carbohydrates %</span>
+        </td>
+        <td>
+            <input type="number" class="input-group" @bind="editedEntry.carbs"/>
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+            <span class="col-form-label">Fat %</span>
+        </td>
+        <td>
+            <input type="number" class="input-group" @bind="editedEntry.fat"/>
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+            <button class="btn btn-outline-primary" @onclick="SaveChanges">Save</button>
+        </td>
+    </tr>
+</table>
+
+
+@code {
+
+    [Parameter]
+    public string identifier { get; set; }
+
+    Dashboard.PantryEntry editedEntry;
+
+    protected override Task OnInitializedAsync()
+    {
+        editedEntry = new Dashboard.PantryEntry()
+        {
+            identifier = Guid.Parse(identifier),
+            name = "Fakes",
+            imageUrl = "Lentils.jpg",
+            quantity = 2, carbs = 45,
+            fat = 1,
+            protein = 30, calories = 150, unit = Dashboard.Unit.Kg
+        };
+        return Task.CompletedTask;
+    }
+
+    private void IncrementQuantity(Dashboard.PantryEntry pantryEntry)
+    {
+        pantryEntry.quantity++;
+    }
+
+    private void DecrementQuantity(Dashboard.PantryEntry pantryEntry)
+    {
+        pantryEntry.quantity--;
+    }
+
+    private void SaveChanges()
+    {
+        
+    }
+
+}
