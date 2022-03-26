@@ -1,4 +1,6 @@
 @page "/editor/{identifier}"
+@using Microsoft.AspNetCore.Components
+@using Pantrymony.Model
 
 <PageTitle>Add/Edit entry</PageTitle>
 
@@ -7,17 +9,17 @@
 <table class="table">
     <tr class="form-group">
         <td>
-            <img src="@editedEntry.imageUrl" alt="">
+            <img src="@editedEntry.ImageUrl" alt="">
         </td>
     </tr>
     <tr class="form-group">
         <td>
-            <span class="col-form-label">@editedEntry.name</span>
+            <span class="col-form-label">@editedEntry.Name</span>
         </td>
     </tr>
     <tr class="form-group">
         <td>
-            <label>Quantity:@editedEntry.quantity</label>
+            <label>Quantity:@editedEntry.Quantity</label>
             <button class="btn btn-outline-primary" @onclick="() => { IncrementQuantity(editedEntry); }">+</button>
             <button class="btn btn-outline-primary" @onclick="() => { DecrementQuantity(editedEntry); }">-</button>
         </td>
@@ -27,7 +29,7 @@
             <span class="col-form-label">KCal/100 units</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.calories"/>
+            <input type="number" class="input-group" @bind="editedEntry.Calories"/>
         </td>
     </tr>
     <tr class="form-group">
@@ -35,7 +37,7 @@
             <span class="col-form-label">Protein %</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.protein"/>
+            <input type="number" class="input-group" @bind="editedEntry.Protein"/>
         </td>
     </tr>
     <tr class="form-group">
@@ -43,7 +45,7 @@
             <span class="col-form-label">Carbohydrates %</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.carbs"/>
+            <input type="number" class="input-group" @bind="editedEntry.Carbs"/>
         </td>
     </tr>
     <tr class="form-group">
@@ -51,7 +53,7 @@
             <span class="col-form-label">Fat %</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.fat"/>
+            <input type="number" class="input-group" @bind="editedEntry.Fat"/>
         </td>
     </tr>
     <tr class="form-group">
@@ -67,30 +69,30 @@
     [Parameter]
     public string identifier { get; set; }
 
-    Dashboard.PantryEntry editedEntry;
+    Victual editedEntry;
 
     protected override Task OnInitializedAsync()
     {
-        editedEntry = new Dashboard.PantryEntry()
+        editedEntry = new Victual()
         {
-            identifier = Guid.Parse(identifier),
-            name = "Fakes",
-            imageUrl = "Lentils.jpg",
-            quantity = 2, carbs = 45,
-            fat = 1,
-            protein = 30, calories = 150, unit = Dashboard.Unit.Kg
+            Identifier = Guid.Parse(identifier),
+            Name = "Fakes",
+            ImageUrl = "Lentils.jpg",
+            Quantity = 2, Carbs = 45,
+            Fat = 1,
+            Protein = 30, Calories = 150, Unit = Unit.Kg
         };
         return Task.CompletedTask;
     }
 
-    private void IncrementQuantity(Dashboard.PantryEntry pantryEntry)
+    private void IncrementQuantity(Victual victual)
     {
-        pantryEntry.quantity++;
+        victual.Quantity++;
     }
 
-    private void DecrementQuantity(Dashboard.PantryEntry pantryEntry)
+    private void DecrementQuantity(Victual victual)
     {
-        pantryEntry.quantity--;
+        victual.Quantity--;
     }
 
     private void SaveChanges()

@@ -1,9 +1,12 @@
 @page "/"
-@inject NavigationManager UriHelper
+@using Pantrymony.Model
+@inject NavigationManager _uriHelper
+@inject IConfiguration _configuration
+@inject HttpClient _http
 
 @attribute [Authorize] 
 
-<PageTitle>My Pantry</PageTitle>
+<PageTitle>My Pantry + @Title</PageTitle>
 
 <h1>My Products</h1>
 
@@ -14,13 +17,13 @@
 
 <table class="table">
     <ul>
-        @foreach (PantryEntry pantryEntry in entries)
+        @foreach (Victual pantryEntry in _entries)
         {
             <tr class="form-group">
                 <td><input type="checkbox" @onclick="() => { EntrySelected(pantryEntry); }"/></td>
-                <td><span class="col-form-label">@pantryEntry.name</span></td>
-                <td><img src="@pantryEntry.imageUrl" alt=""></td>
-                <td><label>Quantity:@pantryEntry.quantity</label></td>
+                <td><span class="col-form-label">@pantryEntry.Name</span></td>
+                <td><img src="@pantryEntry.ImageUrl" alt=""></td>
+                <td><label>Quantity:@pantryEntry.Quantity</label></td>
                 <td><button class="btn btn-primary" @onclick="() => { IncrementQuantity(pantryEntry); }">+</button></td>
                 <td><button class="btn btn-primary" @onclick="() => { DecrementQuantity(pantryEntry); }">-</button></td>
             </tr>
@@ -29,43 +32,36 @@
 </table>
 
 @code {
-    public class Unit
-    {
-        public string name;
 
-        public static Unit Kg = new() { name = "kg" };
-        public static Unit Ml = new() { name = "ml" };
+
+    private List<Victual> _entries = new List<Victual>();
+    private string Title;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = 
+                await _http.GetFromJsonAsync<List<Victual>>(_configuration["TargetApi"] + "/victuals");
+            _entries = response ?? new List<Victual>();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Victuals could not be parsed");
+            Console.WriteLine(e);
+        }
+        
     }
-    
-    public class PantryEntry
-    {
-        public Guid identifier;
-        public string name;
-        public string imageUrl;
-        public ushort quantity;
-        public double calories;
-        public double protein;
-        public double fat;
-        public double carbs;
-        public Unit unit;
-    }
 
-    private List<PantryEntry> entries = new List<PantryEntry>
+    private void IncrementQuantity(Victual entry)
     {
-        new() { identifier = Guid.NewGuid(), name = "Fakes", imageUrl = "Lentils.jpg", quantity = 2, carbs = 45, fat = 1, protein = 30, calories = 150, unit = Unit.Kg },
-        new() { identifier = Guid.NewGuid(), name = "Milk", imageUrl = "Milk.jpg", quantity = 4, carbs = 12, fat = 10, protein = 40, calories = 100, unit = Unit.Ml }
-    };
-
-    
-    private void IncrementQuantity(PantryEntry entry)
-    {
-        entry.quantity++;
+        entry.Quantity++;
         //Notify db about quantity increase
     }
 
-    private void DecrementQuantity(PantryEntry entry)
+    private void DecrementQuantity(Victual entry)
     {
-        entry.quantity--;
+        entry.Quantity--;
     //Notify db about quantity decrease
     }
 
@@ -79,14 +75,14 @@
         throw new NotImplementedException();
     }
 
-    private void EntrySelected(PantryEntry pantryEntry)
+    private void EntrySelected(Victual victual)
     {
         
     }
 
     private void EditSelectedEntry()
     {
-        UriHelper.NavigateTo($"editor/{entries.First().identifier}");
+        _uriHelper.NavigateTo($"editor/{_entries.First().Identifier}");
     }
 
 }
