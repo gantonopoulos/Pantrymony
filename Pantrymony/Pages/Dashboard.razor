@@ -11,8 +11,10 @@
 <h1>My Products</h1>
 
 <button class="btn btn-primary" @onclick="AddNewEntry">Add</button>
-<button class="btn btn-primary" @onclick="DeleteSelectedEntries">Delete</button>
-<button class="btn btn-primary" @onclick="EditSelectedEntry" >Edit</button>
+<button class="btn btn-primary" @onclick="DeleteSelectedEntriesAsync"
+        disabled="@IsDeletingDisabled">Delete</button>
+<button class="btn btn-primary" @onclick="EditSelectedEntry" 
+        disabled="@IsEditingDisabled">Edit</button>
 
 
 <table class="table">
@@ -34,23 +36,30 @@
 @code {
 
 
-    private List<Victual> _entries = new List<Victual>();
+    private readonly List<Victual> _selectedEntries = new();
+    private List<Victual> _entries = new();
     private string Title;
+
 
     protected override async Task OnInitializedAsync()
     {
+        await FetchVictualsAsync();
+    }
+
+    private async Task FetchVictualsAsync()
+    {
         try
         {
-            var response = 
+            var response =
                 await _http.GetFromJsonAsync<List<Victual>>(_configuration["TargetApi"] + "/victuals");
             _entries = response ?? new List<Victual>();
+            _entries.ForEach(Console.WriteLine);
         }
         catch (Exception e)
         {
             Console.WriteLine("Victuals could not be parsed");
             Console.WriteLine(e);
         }
-        
     }
 
     private void IncrementQuantity(Victual entry)
@@ -67,22 +76,48 @@
 
     private void AddNewEntry()
     {
-        throw new NotImplementedException();
+        _uriHelper.NavigateTo($"editor/{Guid.Empty.ToString()}");
     }
 
-    private void DeleteSelectedEntries()
+    private async Task DeleteSelectedEntriesAsync()
     {
-        throw new NotImplementedException();
+        foreach (var entry in _selectedEntries)
+        {
+            await RequestDeleteVictualAsync(entry);
+        }
+        _selectedEntries.Clear();
+        
+        
+        await FetchVictualsAsync();
+    }
+
+    private async Task RequestDeleteVictualAsync(Victual victual)
+    {
+        await _http.DeleteAsync(_configuration["TargetApi"] + $"/victuals/{victual.Identifier}");
     }
 
     private void EntrySelected(Victual victual)
     {
-        
+        if (_selectedEntries.Contains(victual))
+        {
+            Console.WriteLine($" Unselected [{victual.Identifier}]");
+            _selectedEntries.Remove(victual);
+        }
+        else
+        {
+            Console.WriteLine($"Selected [{victual.Identifier}]");
+            _selectedEntries.Add(victual);
+        }
+               
     }
 
     private void EditSelectedEntry()
     {
-        _uriHelper.NavigateTo($"editor/{_entries.First().Identifier}");
+        _uriHelper.NavigateTo($"editor/{_selectedEntries.First().Identifier}");
     }
+
+    private bool IsEditingDisabled => _selectedEntries.Count() != 1;
+
+    private bool IsDeletingDisabled => !_selectedEntries.Any();
 
 }

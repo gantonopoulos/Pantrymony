@@ -1,27 +1,34 @@
-@page "/editor/{identifier}"
+@page "/editor/{Identifier}"
 @using Microsoft.AspNetCore.Components
+@using Pantrymony.Extensions
 @using Pantrymony.Model
+@inject HttpClient _http
+@inject IConfiguration _configuration
+@inject NavigationManager _uriHelper
 
 <PageTitle>Add/Edit entry</PageTitle>
 
-<h3>Editor (@identifier)</h3>
+<h3>Editor</h3>
 
 <table class="table">
     <tr class="form-group">
         <td>
-            <img src="@editedEntry.ImageUrl" alt="">
+            <img src="@_editedEntry.ImageUrl" alt="">
         </td>
     </tr>
     <tr class="form-group">
         <td>
-            <span class="col-form-label">@editedEntry.Name</span>
+            <span class="col-form-label">Name</span>
+        </td>
+        <td>
+            <input type="text" class="input-group" @bind="_editedEntry.Name"/>
         </td>
     </tr>
     <tr class="form-group">
         <td>
-            <label>Quantity:@editedEntry.Quantity</label>
-            <button class="btn btn-outline-primary" @onclick="() => { IncrementQuantity(editedEntry); }">+</button>
-            <button class="btn btn-outline-primary" @onclick="() => { DecrementQuantity(editedEntry); }">-</button>
+            <label>Quantity:@_editedEntry.Quantity</label>
+            <button class="btn btn-outline-primary" @onclick="() => { IncrementQuantity(_editedEntry); }">+</button>
+            <button class="btn btn-outline-primary" @onclick="() => { DecrementQuantity(_editedEntry); }">-</button>
         </td>
     </tr>
     <tr class="form-group">
@@ -29,7 +36,7 @@
             <span class="col-form-label">KCal/100 units</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.Calories"/>
+            <input type="number" class="input-group" @bind="_editedEntry.Calories"/>
         </td>
     </tr>
     <tr class="form-group">
@@ -37,7 +44,7 @@
             <span class="col-form-label">Protein %</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.Protein"/>
+            <input type="number" class="input-group" @bind="_editedEntry.Protein"/>
         </td>
     </tr>
     <tr class="form-group">
@@ -45,7 +52,7 @@
             <span class="col-form-label">Carbohydrates %</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.Carbs"/>
+            <input type="number" class="input-group" @bind="_editedEntry.Carbs"/>
         </td>
     </tr>
     <tr class="form-group">
@@ -53,12 +60,12 @@
             <span class="col-form-label">Fat %</span>
         </td>
         <td>
-            <input type="number" class="input-group" @bind="editedEntry.Fat"/>
+            <input type="number" class="input-group" @bind="_editedEntry.Fat"/>
         </td>
     </tr>
     <tr class="form-group">
         <td>
-            <button class="btn btn-outline-primary" @onclick="SaveChanges">Save</button>
+            <button class="btn btn-outline-primary" @onclick="SaveChangesAsync">Save</button>
         </td>
     </tr>
 </table>
@@ -67,22 +74,21 @@
 @code {
 
     [Parameter]
-    public string identifier { get; set; }
+    public string? Identifier { get; set; }
 
-    Victual editedEntry;
+    Victual _editedEntry = new Victual();
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
-        editedEntry = new Victual()
+        Identifier.ThrowIfNull(new ArgumentNullException(nameof(Identifier)));
+        if (Guid.Parse(Identifier!) == Guid.Empty)
+            _editedEntry = new Victual();
+        else
         {
-            Identifier = Guid.Parse(identifier),
-            Name = "Fakes",
-            ImageUrl = "Lentils.jpg",
-            Quantity = 2, Carbs = 45,
-            Fat = 1,
-            Protein = 30, Calories = 150, Unit = Unit.Kg
-        };
-        return Task.CompletedTask;
+            var result = await _http.GetFromJsonAsync<Victual>(
+                _configuration["TargetApi"] + $"/victuals/{Identifier}");
+            _editedEntry = result.ThrowIfNull( new Exception( $"Victual with id:{Identifier} not found!" ));
+        }
     }
 
     private void IncrementQuantity(Victual victual)
@@ -95,9 +101,35 @@
         victual.Quantity--;
     }
 
-    private void SaveChanges()
+    private async Task SaveChangesAsync()
     {
+        if (_editedEntry.Identifier == Guid.Empty)
+        {
+            _editedEntry.Identifier = Guid.NewGuid();
+            await PostNewEntryAsync(_editedEntry);
+        }
+        else
+        {
+            await PutExistingEntryAsync(_editedEntry);
+        }
+        _uriHelper.NavigateTo($"/");
+    }
+
+    private async Task PutExistingEntryAsync(Victual editedEntry)
+    {
+        Console.WriteLine($"Updating Entry with id {editedEntry.Identifier}");
+        HttpResponseMessage response = await _http.PutAsJsonAsync(_configuration["TargetApi"] + $"/victuals/{editedEntry.Identifier}",
+            editedEntry);
         
+        Console.WriteLine(response.StatusCode);
+        Console.WriteLine(await response.Content.ReadAsStringAsync());
+    }
+
+    private async Task PostNewEntryAsync(Victual editedEntry)
+    {
+        Console.WriteLine($"Adding Entry with id {editedEntry.Identifier}");
+        var response = await _http.PostAsJsonAsync(_configuration["TargetApi"] + $"/victuals", editedEntry);
+        Console.WriteLine(response);
     }
 
 }

@@ -3,7 +3,9 @@
 <p>
     @if (string.IsNullOrEmpty(username))
     {
-        <span><a href="/register">Register</a> <a href="/login">Login</a></span>
+        <span>
+            <a href="/register">Register</a> <a href="/login">Login</a>
+        </span>
     }
     else
     {
@@ -18,10 +20,12 @@
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        var userdata = await jsr.InvokeAsync<string>("localStorage.getItem", "user").ConfigureAwait(false);
+        var userdata = await jsr.InvokeAsync<string>("localStorage.getItem", "user").
+            ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(userdata))
         {
             username = userdata.Split(';', 2)[0];
         }
     }
+
 }
