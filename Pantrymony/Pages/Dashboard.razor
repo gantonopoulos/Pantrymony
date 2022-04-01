@@ -1,5 +1,6 @@
 @page "/"
 @using Pantrymony.Model
+@using Pantrymony.Communication
 @inject NavigationManager _uriHelper
 @inject IConfiguration _configuration
 @inject HttpClient _http
@@ -62,16 +63,18 @@
         }
     }
 
-    private void IncrementQuantity(Victual entry)
+    private async Task IncrementQuantity(Victual entry)
     {
         entry.Quantity++;
-        //Notify db about quantity increase
+        await BackendCommunication.SendUpdateVictualAsync(_http, _configuration, entry);
+        await FetchVictualsAsync();
     }
 
-    private void DecrementQuantity(Victual entry)
+    private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
-    //Notify db about quantity decrease
+        await BackendCommunication.SendUpdateVictualAsync(_http, _configuration, entry);
+        await FetchVictualsAsync();
     }
 
     private void AddNewEntry()
@@ -86,8 +89,6 @@
             await RequestDeleteVictualAsync(entry);
         }
         _selectedEntries.Clear();
-        
-        
         await FetchVictualsAsync();
     }
 
