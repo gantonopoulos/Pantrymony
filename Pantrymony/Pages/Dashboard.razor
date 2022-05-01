@@ -1,10 +1,12 @@
 @page "/"
 @using Pantrymony.Model
 @using Pantrymony.Communication
+@using System.Text.Json
 @inject NavigationManager _uriHelper
 @inject IConfiguration _configuration
 @inject HttpClient _http
-
+@inject ILogger<Dashboard> logger
+@inject AuthenticationStateProvider AuthState
 @attribute [Authorize] 
 
 <PageTitle>My Pantry + @Title</PageTitle>
@@ -44,6 +46,26 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        
+        
+        logger.LogInformation("Authenticated User = [{User}]", state.User.Identity.Name); 
+        logger.LogInformation("AuthType = [{AuthType}]", state.User.Identity.AuthenticationType);
+        foreach (var claim in state.User.Claims)
+        {
+            logger.LogInformation("Claim Issuer = [{Claim}]", claim.Issuer);
+            logger.LogInformation("Claim Type = [{Claim}]", claim.Type);
+            logger.LogInformation("Claim Value = [{Claim}]", claim.Value);
+        }
+        
+        
+        foreach (var identity in state.User.Identities)
+        {
+            logger.LogInformation("identity name = [{Identity}]", identity.Name);
+            logger.LogInformation("identity name = [{Identity}]", identity.Actor.Name);
+            logger.LogInformation("identity name = [{Identity}]", identity.Name);
+        }
+
         await FetchVictualsAsync();
     }
 
@@ -51,6 +73,8 @@
     {
         try
         {
+            logger.LogInformation("Fetching Victuals!");
+            
             var response =
                 await _http.GetFromJsonAsync<List<Victual>>(_configuration["TargetApi"] + "/victuals");
             _entries = response ?? new List<Victual>();

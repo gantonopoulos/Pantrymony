@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Blazor.Extensions.Logging" Version="2.0.4" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="6.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="6.0.3" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="6.0.2" PrivateAssets="all" />
@@ -15,7 +16,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Exceptions" />
+      <Folder Include="Components" />
     </ItemGroup>
 
 </Project>

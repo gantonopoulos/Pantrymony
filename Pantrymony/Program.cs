@@ -14,4 +14,5 @@ builder.Services.AddOidcAuthentication(options=>
 }
 );
 
+
 await builder.Build().RunAsync();
