@@ -1,4 +1,4 @@
-@page "/editor/{Identifier}"
+@page "/editor/{UserId}/{Identifier}"
 @using Microsoft.AspNetCore.Components
 @using Pantrymony.Extensions
 @using Pantrymony.Model
@@ -78,10 +78,12 @@
 @code {
 
     [Parameter]
-    public string? Identifier { get; set; }
+    public string UserID { get; set; }
+    [Parameter]
+    public string Identifier { get; set; }
 
     
-    Victual _editedEntry = new Victual();
+    Victual _editedEntry = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -91,7 +93,7 @@
         else
         {
             var result = await _http.GetFromJsonAsync<Victual>(
-                _configuration["TargetApi"] + $"/victuals/{Identifier}");
+                _configuration["TargetApi"] + $"/victuals/{UserID}/{Identifier}");
             _editedEntry = result.ThrowIfNull( new Exception( $"Victual with id:{Identifier} not found!" ));
         }
     }

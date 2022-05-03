@@ -1,11 +1,11 @@
 @page "/"
 @using Pantrymony.Model
 @using Pantrymony.Communication
-@using System.Text.Json
+@using System.Security.Authentication
 @inject NavigationManager _uriHelper
 @inject IConfiguration _configuration
 @inject HttpClient _http
-@inject ILogger<Dashboard> logger
+@inject ILogger<AuthorizeView> Logger
 @inject AuthenticationStateProvider AuthState
 @attribute [Authorize] 
 
@@ -46,38 +46,32 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var state = await AuthState.GetAuthenticationStateAsync();
-        
-        
-        logger.LogInformation("Authenticated User = [{User}]", state.User.Identity.Name); 
-        logger.LogInformation("AuthType = [{AuthType}]", state.User.Identity.AuthenticationType);
-        foreach (var claim in state.User.Claims)
-        {
-            logger.LogInformation("Claim Issuer = [{Claim}]", claim.Issuer);
-            logger.LogInformation("Claim Type = [{Claim}]", claim.Type);
-            logger.LogInformation("Claim Value = [{Claim}]", claim.Value);
-        }
-        
-        
-        foreach (var identity in state.User.Identities)
-        {
-            logger.LogInformation("identity name = [{Identity}]", identity.Name);
-            logger.LogInformation("identity name = [{Identity}]", identity.Actor.Name);
-            logger.LogInformation("identity name = [{Identity}]", identity.Name);
-        }
-
+        await GetAuthenticatedUserData();
         await FetchVictualsAsync();
     }
-
+    private async Task<string> GetAuthenticatedUserData()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        
+        if (!state.User.HasClaim(claim => claim.Type == Common.Constants.EmailOidcClaimType))
+        {
+            const string errorMsg = "Authenticated User Email could not be retrieved";
+            Logger.LogError(errorMsg);
+            throw new AuthenticationException(errorMsg);
+        }
+        
+        return state.User.Claims.First(claim => claim.Type == Common.Constants.EmailOidcClaimType).Value;
+    }
+    
     private async Task FetchVictualsAsync()
     {
         try
         {
-            logger.LogInformation("Fetching Victuals!");
-            
+            Logger.LogInformation("Fetching Victuals!");
+            var userId = await GetAuthenticatedUserData();
             var response =
-                await _http.GetFromJsonAsync<List<Victual>>(_configuration["TargetApi"] + "/victuals");
-            _entries = response ?? new List<Victual>();
+                await _http.GetFromJsonAsync<List<Victual>>(_configuration["TargetApi"] + $"/victuals/{userId}");
+            _entries = response != null? response.OrderBy(entry=>entry.Name).ToList(): new List<Victual>();
             _entries.ForEach(Console.WriteLine);
         }
         catch (Exception e)
@@ -138,7 +132,7 @@
 
     private void EditSelectedEntry()
     {
-        _uriHelper.NavigateTo($"editor/{_selectedEntries.First().Identifier}");
+        _uriHelper.NavigateTo($"editor/{_selectedEntries.First().UserId}/{_selectedEntries.First().Identifier}");
     }
 
     private bool IsEditingDisabled => _selectedEntries.Count() != 1;
