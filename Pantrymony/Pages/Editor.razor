@@ -2,9 +2,10 @@
 @using Microsoft.AspNetCore.Components
 @using Pantrymony.Extensions
 @using Pantrymony.Model
-@inject HttpClient _http
-@inject IConfiguration _configuration
-@inject NavigationManager _uriHelper
+@inject ILogger<Editor> Logger
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@inject NavigationManager UriHelper
 
 <PageTitle>Add/Edit entry</PageTitle>
 
@@ -67,6 +68,14 @@
             <input type="number" class="input-group" @bind="_editedEntry.Fat"/>
         </td>
     </tr>
+     <tr class="form-group">
+            <td>
+                <span class="col-form-label">Expiration date</span>
+            </td>
+            <td>
+                <input type="date" value="@_editedEntry.Expires.ToString("yyyy-MM-dd")" @onchange="ExpirationDateChanged"/>
+            </td>
+        </tr>
     <tr class="form-group">
         <td>
             <button class="btn btn-outline-primary" @onclick="SaveChangesAsync">Save</button>
@@ -77,23 +86,40 @@
 
 @code {
 
+    private enum OperatingMode
+    {
+        Editing,
+        Adding,
+        None
+    }
+    
     [Parameter]
     public string UserID { get; set; }
     [Parameter]
     public string Identifier { get; set; }
 
-    
-    Victual _editedEntry = new();
+    private OperatingMode _operatingMode = OperatingMode.None;
+    private Victual _editedEntry = new();
 
     protected override async Task OnInitializedAsync()
     {
         Identifier.ThrowIfNull(new ArgumentNullException(nameof(Identifier)));
         if (Guid.Parse(Identifier!) == Guid.Empty)
-            _editedEntry = new Victual();
+        {
+            _operatingMode = OperatingMode.Adding;
+            _editedEntry = new Victual
+            {
+                UserId = UserID,
+                Identifier = Guid.NewGuid(),
+                Expires = DateTime.Now,
+                ImageUrl = String.Empty
+            };
+        }
         else
         {
-            var result = await _http.GetFromJsonAsync<Victual>(
-                _configuration["TargetApi"] + $"/victuals/{UserID}/{Identifier}");
+            _operatingMode = OperatingMode.Editing;
+            var result = await Http.GetFromJsonAsync<Victual>(
+                Configuration["TargetApi"] + $"/victuals/{UserID}/{Identifier}");
             _editedEntry = result.ThrowIfNull( new Exception( $"Victual with id:{Identifier} not found!" ));
         }
     }
@@ -110,27 +136,27 @@
 
     private async Task SaveChangesAsync()
     {
-        if (_editedEntry.Identifier == Guid.Empty)
+        if (_operatingMode == OperatingMode.Adding)
         {
-            _editedEntry.Identifier = Guid.NewGuid();
             await PostNewEntryAsync(_editedEntry);
         }
         else
         {
             await PutExistingEntryAsync(_editedEntry);
         }
-        _uriHelper.NavigateTo($"/");
+        UriHelper.NavigateTo($"/");
     }
 
     private async Task PutExistingEntryAsync(Victual editedEntry)
     {
-        await Communication.BackendCommunication.SendUpdateVictualAsync(_http, _configuration, editedEntry);
+        await Communication.BackendCommunication.SendUpdateVictualAsync(Http, Configuration, editedEntry);
     }
 
     private async Task PostNewEntryAsync(Victual editedEntry)
     {
+        Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.Identifier);
         Console.WriteLine($"Adding Entry with id {editedEntry.Identifier}");
-        var response = await _http.PostAsJsonAsync(_configuration["TargetApi"] + $"/victuals", editedEntry);
+        var response = await Http.PostAsJsonAsync(Configuration["TargetApi"] + $"/victuals", editedEntry);
         Console.WriteLine(response);
     }
 
@@ -142,6 +168,12 @@
             
         }
                 
+    }
+
+    private void ExpirationDateChanged(ChangeEventArgs obj)
+    {
+        if(obj.Value != null && DateTime.TryParse(obj.Value.ToString(), out var updatedDate))
+            _editedEntry.Expires = updatedDate;
     }
 
 }

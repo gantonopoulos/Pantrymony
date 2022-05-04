@@ -19,6 +19,7 @@ public class Victual
     public double Protein { get; set; }
     
     public double Fat { get; set; }
+    
     public DateTime Expires { get; set; }
     
     public double Carbs { get; set; }

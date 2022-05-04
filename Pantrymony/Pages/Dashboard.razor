@@ -2,10 +2,10 @@
 @using Pantrymony.Model
 @using Pantrymony.Communication
 @using System.Security.Authentication
-@inject NavigationManager _uriHelper
-@inject IConfiguration _configuration
-@inject HttpClient _http
-@inject ILogger<AuthorizeView> Logger
+@inject NavigationManager UriHelper
+@inject IConfiguration Configuration
+@inject HttpClient Http
+@inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthState
 @attribute [Authorize] 
 
@@ -13,10 +13,10 @@
 
 <h1>My Products</h1>
 
-<button class="btn btn-primary" @onclick="AddNewEntry">Add</button>
+<button class="btn btn-primary" @onclick="AddNewEntryAsync">Add</button>
 <button class="btn btn-primary" @onclick="DeleteSelectedEntriesAsync"
         disabled="@IsDeletingDisabled">Delete</button>
-<button class="btn btn-primary" @onclick="EditSelectedEntry" 
+<button class="btn btn-primary" @onclick="EditSelectedEntryAsync" 
         disabled="@IsEditingDisabled">Edit</button>
 
 
@@ -25,12 +25,15 @@
         @foreach (Victual pantryEntry in _entries)
         {
             <tr class="form-group">
-                <td><input type="checkbox" @onclick="() => { EntrySelected(pantryEntry); }"/></td>
+                <td><input @key="pantryEntry" type="checkbox" @onclick="() => { EntrySelected(pantryEntry); }"/></td>
                 <td><span class="col-form-label">@pantryEntry.Name</span></td>
                 <td><img src="@pantryEntry.ImageUrl" alt=""></td>
                 <td><label>Quantity:@pantryEntry.Quantity</label></td>
                 <td><button class="btn btn-primary" @onclick="() => { IncrementQuantity(pantryEntry); }">+</button></td>
                 <td><button class="btn btn-primary" @onclick="() => { DecrementQuantity(pantryEntry); }">-</button></td>
+                <td><label>Expires:</label></td>
+                <td><input type="date"  value="@pantryEntry.Expires.ToString("yyyy-MM-dd")" 
+                                           @onchange="changeArgs => { ExpirationDateChangedAsync(changeArgs, pantryEntry); }"/></td>
             </tr>
         }
     </ul>
@@ -46,10 +49,10 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await GetAuthenticatedUserData();
+        await GetAuthenticatedUserDataAsync();
         await FetchVictualsAsync();
     }
-    private async Task<string> GetAuthenticatedUserData()
+    private async Task<string> GetAuthenticatedUserDataAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
         
@@ -68,9 +71,9 @@
         try
         {
             Logger.LogInformation("Fetching Victuals!");
-            var userId = await GetAuthenticatedUserData();
+            var userId = await GetAuthenticatedUserDataAsync();
             var response =
-                await _http.GetFromJsonAsync<List<Victual>>(_configuration["TargetApi"] + $"/victuals/{userId}");
+                await Http.GetFromJsonAsync<List<Victual>>(Configuration["TargetApi"] + $"/victuals/{userId}");
             _entries = response != null? response.OrderBy(entry=>entry.Name).ToList(): new List<Victual>();
             _entries.ForEach(Console.WriteLine);
         }
@@ -84,20 +87,21 @@
     private async Task IncrementQuantity(Victual entry)
     {
         entry.Quantity++;
-        await BackendCommunication.SendUpdateVictualAsync(_http, _configuration, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
         await FetchVictualsAsync();
     }
 
     private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
-        await BackendCommunication.SendUpdateVictualAsync(_http, _configuration, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
         await FetchVictualsAsync();
     }
 
-    private void AddNewEntry()
+    private async void AddNewEntryAsync()
     {
-        _uriHelper.NavigateTo($"editor/{Guid.Empty.ToString()}");
+        var userId = await GetAuthenticatedUserDataAsync();
+        UriHelper.NavigateTo($"editor/{userId}/{Guid.Empty.ToString()}");
     }
 
     private async Task DeleteSelectedEntriesAsync()
@@ -112,7 +116,7 @@
 
     private async Task RequestDeleteVictualAsync(Victual victual)
     {
-        await _http.DeleteAsync(_configuration["TargetApi"] + $"/victuals/{victual.Identifier}");
+        await Http.DeleteAsync(Configuration["TargetApi"] + $"/victuals/{victual.UserId}/{victual.Identifier}");
     }
 
     private void EntrySelected(Victual victual)
@@ -127,16 +131,32 @@
             Console.WriteLine($"Selected [{victual.Identifier}]");
             _selectedEntries.Add(victual);
         }
-               
     }
 
-    private void EditSelectedEntry()
+    private async void EditSelectedEntryAsync()
     {
-        _uriHelper.NavigateTo($"editor/{_selectedEntries.First().UserId}/{_selectedEntries.First().Identifier}");
+        var userId = await GetAuthenticatedUserDataAsync();
+        UriHelper.NavigateTo($"editor/{userId}/{_selectedEntries.First().Identifier}");
     }
 
     private bool IsEditingDisabled => _selectedEntries.Count() != 1;
 
     private bool IsDeletingDisabled => !_selectedEntries.Any();
 
+    private async void ExpirationDateChangedAsync(ChangeEventArgs obj, Victual entry)
+    {
+        try
+        {
+            if (obj.Value == null || !DateTime.TryParse(obj.Value.ToString(), out var updatedDate)) return;
+            entry.Expires = updatedDate;
+            await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
+            await FetchVictualsAsync();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+    }
 }
