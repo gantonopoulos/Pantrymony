@@ -1,5 +1,6 @@
 @page "/editor/{UserId}/{Identifier}"
 @using Microsoft.AspNetCore.Components
+@using Pantrymony.Communication
 @using Pantrymony.Extensions
 @using Pantrymony.Model
 @inject ILogger<Editor> Logger
@@ -34,6 +35,24 @@
             <label>Quantity:@_editedEntry.Quantity</label>
             <button class="btn btn-outline-primary" @onclick="() => { IncrementQuantity(_editedEntry); }">+</button>
             <button class="btn btn-outline-primary" @onclick="() => { DecrementQuantity(_editedEntry); }">-</button>
+        </td>
+    </tr>
+    <tr class="form-group">
+        <td>
+                    <span class="col-form-label">Measurement Unit</span>
+        </td>
+        <td>
+            @if (_units.Any())
+            {
+                <select class="custom-select" title="Measurement Unit" value="@_editedEntry.Unit.Symbol"
+                        @onchange="args => { OnUnitSelectionChanged(args, _editedEntry); }">
+                    <option value="Select" selected disabled="disabled">(Choose measurement unit)</option>
+                    @foreach (var unit in _units)
+                    {
+                        <option value="@unit.Symbol"> @unit.Symbol</option>
+                    }
+                </select>
+            }
         </td>
     </tr>
     <tr class="form-group">
@@ -100,9 +119,11 @@
 
     private OperatingMode _operatingMode = OperatingMode.None;
     private Victual _editedEntry = new();
+    private List<Unit> _units = new();
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadMeasurementUnits();
         Identifier.ThrowIfNull(new ArgumentNullException(nameof(Identifier)));
         if (Guid.Parse(Identifier!) == Guid.Empty)
         {
@@ -112,7 +133,8 @@
                 UserId = UserID,
                 Identifier = Guid.NewGuid(),
                 Expires = DateTime.Now,
-                ImageUrl = String.Empty
+                ImageUrl = String.Empty,
+                Unit = _units.First()
             };
         }
         else
@@ -122,6 +144,12 @@
                 Configuration["TargetApi"] + $"/victuals/{UserID}/{Identifier}");
             _editedEntry = result.ThrowIfNull( new Exception( $"Victual with id:{Identifier} not found!" ));
         }
+    }
+
+    private async Task LoadMeasurementUnits()
+    {
+        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration);
+        _units = units.ToList();
     }
 
     private void IncrementQuantity(Victual victual)
@@ -174,6 +202,16 @@
     {
         if(obj.Value != null && DateTime.TryParse(obj.Value.ToString(), out var updatedDate))
             _editedEntry.Expires = updatedDate;
+    }
+
+    private void OnUnitSelectionChanged(ChangeEventArgs args, Victual editedEntry)
+    {
+        if (args.Value == null)
+            return;
+        var measurementUnit = _units.SingleOrDefault(unit => unit.Symbol == args.Value.ToString());
+        if(measurementUnit == null)
+            return;
+        editedEntry.Unit = measurementUnit;
     }
 
 }

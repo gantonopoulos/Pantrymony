@@ -24,11 +24,11 @@ public class Victual
     
     public double Carbs { get; set; }
 
-    public Unit Unit { get; set; } = Unit.Kg;
+    public Unit Unit { get; set; }
 
     public override string ToString()
     {
-        return $"{UserId},{Identifier},{Name},{ImageUrl},{Quantity},{Calories},{Protein},{Fat},{Carbs},{Expires},{Unit.Name}";
+        return $"{UserId},{Identifier},{Name},{ImageUrl},{Quantity},{Calories},{Protein},{Fat},{Carbs},{Expires},{Unit.Symbol}";
     }
 }
 

@@ -16,4 +16,23 @@ public static class BackendCommunication
         Console.WriteLine($"{response.StatusCode}");
         Console.WriteLine($"{await response.Content.ReadAsStringAsync()}");
     }
+    
+    public static async Task<IEnumerable<Unit>> FetchUnitsAsync(HttpClient client, IConfiguration configuration)
+    {
+        try
+        {
+            Console.WriteLine("Fetching Units!");
+            var response =
+                await client.GetFromJsonAsync<List<Unit>>(configuration["TargetApi"] + $"/Units");
+            List<Unit> result = response != null? response.OrderBy(unit=>unit.Symbol).ToList(): new List<Unit>();
+            result.ForEach(Console.WriteLine);
+            return result;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Victuals could not be parsed");
+            Console.WriteLine(e);
+            throw;
+        }
+    }
 }

@@ -33,7 +33,17 @@
                 <td><button class="btn btn-primary" @onclick="() => { DecrementQuantity(pantryEntry); }">-</button></td>
                 <td><label>Expires:</label></td>
                 <td><input type="date"  value="@pantryEntry.Expires.ToString("yyyy-MM-dd")" 
-                                           @onchange="changeArgs => { ExpirationDateChangedAsync(changeArgs, pantryEntry); }"/></td>
+                           @onchange="changeArgs => { ExpirationDateChangedAsync(changeArgs, pantryEntry); }"/></td>
+                <td><select class="custom-select" title="Measurement Unit"
+                            value="@pantryEntry.Unit.Symbol"
+                            @onchange="args => { OnUnitSelectionChangedAsync(args, pantryEntry);}">
+                     <option value="Select" selected disabled="disabled">(Choose measurement unit)</option>
+                    @foreach (var unit in _units)  
+                    {  
+                        <option value="@unit.Symbol"> @unit.Symbol</option>  
+                    }  
+                </select>
+                </td>
             </tr>
         }
     </ul>
@@ -44,6 +54,7 @@
 
     private readonly List<Victual> _selectedEntries = new();
     private List<Victual> _entries = new();
+    private List<Unit> _units = new();
     private string Title;
 
 
@@ -51,6 +62,8 @@
     {
         await GetAuthenticatedUserDataAsync();
         await FetchVictualsAsync();
+        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration);
+        _units = units.ToList();
     }
     private async Task<string> GetAuthenticatedUserDataAsync()
     {
@@ -88,14 +101,14 @@
     {
         entry.Quantity++;
         await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
-        await FetchVictualsAsync();
+        await OnInitializedAsync();
     }
 
     private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
         await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
-        await FetchVictualsAsync();
+        await OnInitializedAsync();
     }
 
     private async void AddNewEntryAsync()
@@ -111,7 +124,7 @@
             await RequestDeleteVictualAsync(entry);
         }
         _selectedEntries.Clear();
-        await FetchVictualsAsync();
+        await OnInitializedAsync();
     }
 
     private async Task RequestDeleteVictualAsync(Victual victual)
@@ -150,7 +163,7 @@
             if (obj.Value == null || !DateTime.TryParse(obj.Value.ToString(), out var updatedDate)) return;
             entry.Expires = updatedDate;
             await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
-            await FetchVictualsAsync();
+            await OnInitializedAsync();
         }
         catch (Exception e)
         {
@@ -158,5 +171,17 @@
             throw;
         }
         
+    }
+
+    private async void OnUnitSelectionChangedAsync(ChangeEventArgs obj, Victual entry)
+    {
+        if (obj.Value == null)
+            return;
+        var measurementUnit = _units.SingleOrDefault(unit => unit.Symbol == obj.Value.ToString());
+        if(measurementUnit == null)
+            return;
+        entry.Unit = measurementUnit;
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
+        await OnInitializedAsync();
     }
 }
