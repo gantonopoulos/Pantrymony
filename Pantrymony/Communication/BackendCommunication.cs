@@ -8,10 +8,10 @@ public static class BackendCommunication
 {
     public static async Task SendUpdateVictualAsync(HttpClient client, IConfiguration configuration, Victual editedEntry)
     {
-        Console.WriteLine($"Updating Entry {editedEntry.Identifier} of {editedEntry.UserId}");
+        Console.WriteLine($"Updating Entry {editedEntry.VictualId} of {editedEntry.UserId}");
         
         HttpResponseMessage response = await client.PutAsJsonAsync(
-            configuration["TargetApi"] + $"/victuals/{editedEntry.UserId}/{editedEntry.Identifier}", editedEntry);
+            configuration["TargetApi"] + $"/victuals/{editedEntry.UserId}/{editedEntry.VictualId}", editedEntry);
 
         Console.WriteLine($"{response.StatusCode}");
         Console.WriteLine($"{await response.Content.ReadAsStringAsync()}");

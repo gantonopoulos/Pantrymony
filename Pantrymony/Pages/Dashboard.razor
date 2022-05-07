@@ -35,7 +35,7 @@
                 <td><input type="date"  value="@pantryEntry.Expires.ToString("yyyy-MM-dd")" 
                            @onchange="changeArgs => { ExpirationDateChangedAsync(changeArgs, pantryEntry); }"/></td>
                 <td><select class="custom-select" title="Measurement Unit"
-                            value="@pantryEntry.Unit.Symbol"
+                            value="@pantryEntry.Unit"
                             @onchange="args => { OnUnitSelectionChangedAsync(args, pantryEntry);}">
                      <option value="Select" selected disabled="disabled">(Choose measurement unit)</option>
                     @foreach (var unit in _units)  
@@ -129,19 +129,19 @@
 
     private async Task RequestDeleteVictualAsync(Victual victual)
     {
-        await Http.DeleteAsync(Configuration["TargetApi"] + $"/victuals/{victual.UserId}/{victual.Identifier}");
+        await Http.DeleteAsync(Configuration["TargetApi"] + $"/victuals/{victual.UserId}/{victual.VictualId}");
     }
 
     private void EntrySelected(Victual victual)
     {
         if (_selectedEntries.Contains(victual))
         {
-            Console.WriteLine($" Unselected [{victual.Identifier}]");
+            Console.WriteLine($" Unselected [{victual.VictualId}]");
             _selectedEntries.Remove(victual);
         }
         else
         {
-            Console.WriteLine($"Selected [{victual.Identifier}]");
+            Console.WriteLine($"Selected [{victual.VictualId}]");
             _selectedEntries.Add(victual);
         }
     }
@@ -149,7 +149,7 @@
     private async void EditSelectedEntryAsync()
     {
         var userId = await GetAuthenticatedUserDataAsync();
-        UriHelper.NavigateTo($"editor/{userId}/{_selectedEntries.First().Identifier}");
+        UriHelper.NavigateTo($"editor/{userId}/{_selectedEntries.First().VictualId}");
     }
 
     private bool IsEditingDisabled => _selectedEntries.Count() != 1;
@@ -180,7 +180,7 @@
         var measurementUnit = _units.SingleOrDefault(unit => unit.Symbol == obj.Value.ToString());
         if(measurementUnit == null)
             return;
-        entry.Unit = measurementUnit;
+        entry.Unit = measurementUnit.Symbol;
         await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
         await OnInitializedAsync();
     }

@@ -6,7 +6,7 @@ public class Victual
 {
     public string UserId { get; set; }
     
-    public Guid Identifier { get; set; }
+    public Guid VictualId { get; set; }
     
     public string Name { get; set; } = string.Empty;
     
@@ -24,11 +24,11 @@ public class Victual
     
     public double Carbs { get; set; }
 
-    public Unit Unit { get; set; }
+    public string Unit { get; set; }
 
     public override string ToString()
     {
-        return $"{UserId},{Identifier},{Name},{ImageUrl},{Quantity},{Calories},{Protein},{Fat},{Carbs},{Expires},{Unit.Symbol}";
+        return $"{UserId},{VictualId},{Name},{ImageUrl},{Quantity},{Calories},{Protein},{Fat},{Carbs},{Expires},{Unit}";
     }
 }
 

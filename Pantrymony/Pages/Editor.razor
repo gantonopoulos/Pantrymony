@@ -44,7 +44,7 @@
         <td>
             @if (_units.Any())
             {
-                <select class="custom-select" title="Measurement Unit" value="@_editedEntry.Unit.Symbol"
+                <select class="custom-select" title="Measurement Unit" value="@_editedEntry.Unit"
                         @onchange="args => { OnUnitSelectionChanged(args, _editedEntry); }">
                     <option value="Select" selected disabled="disabled">(Choose measurement unit)</option>
                     @foreach (var unit in _units)
@@ -131,10 +131,10 @@
             _editedEntry = new Victual
             {
                 UserId = UserID,
-                Identifier = Guid.NewGuid(),
+                VictualId = Guid.NewGuid(),
                 Expires = DateTime.Now,
                 ImageUrl = String.Empty,
-                Unit = _units.First()
+                Unit = _units.First().Symbol
             };
         }
         else
@@ -182,8 +182,8 @@
 
     private async Task PostNewEntryAsync(Victual editedEntry)
     {
-        Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.Identifier);
-        Console.WriteLine($"Adding Entry with id {editedEntry.Identifier}");
+        Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId);
+        Console.WriteLine($"Adding Entry with id {editedEntry.VictualId}");
         var response = await Http.PostAsJsonAsync(Configuration["TargetApi"] + $"/victuals", editedEntry);
         Console.WriteLine(response);
     }
@@ -211,7 +211,7 @@
         var measurementUnit = _units.SingleOrDefault(unit => unit.Symbol == args.Value.ToString());
         if(measurementUnit == null)
             return;
-        editedEntry.Unit = measurementUnit;
+        editedEntry.Unit = measurementUnit.Symbol;
     }
 
 }
