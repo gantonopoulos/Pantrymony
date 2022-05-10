@@ -86,7 +86,9 @@
             Logger.LogInformation("Fetching Victuals!");
             var userId = await GetAuthenticatedUserDataAsync();
             var response =
-                await Http.GetFromJsonAsync<List<Victual>>(Configuration["TargetApi"] + $"/victuals/{userId}");
+                await Http.GetFromJsonAsync<List<Victual>>(Configuration["TargetApi"] + 
+                                                           $"/uservictuals?userId={userId}");
+            
             _entries = response != null? response.OrderBy(entry=>entry.Name).ToList(): new List<Victual>();
             _entries.ForEach(Console.WriteLine);
         }
@@ -129,7 +131,9 @@
 
     private async Task RequestDeleteVictualAsync(Victual victual)
     {
-        await Http.DeleteAsync(Configuration["TargetApi"] + $"/victuals/{victual.UserId}/{victual.VictualId}");
+        await Http.DeleteAsync(Configuration["TargetApi"] + 
+                               $"/deletevictual?userId={victual.UserId}&" +
+                               $"victualId={victual.VictualId}'");
     }
 
     private void EntrySelected(Victual victual)

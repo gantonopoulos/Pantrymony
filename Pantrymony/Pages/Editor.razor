@@ -140,9 +140,11 @@
         else
         {
             _operatingMode = OperatingMode.Editing;
-            var result = await Http.GetFromJsonAsync<Victual>(
-                Configuration["TargetApi"] + $"/victuals/{UserID}/{Identifier}");
-            _editedEntry = result.ThrowIfNull( new Exception( $"Victual with id:{Identifier} not found!" ));
+            var result = await Http.GetFromJsonAsync<Victual>(Configuration["TargetApi"] +
+                                                              $"/uservictual" +
+                                                              $"?userId={UserID}" +
+                                                              $"&victualId={Identifier}");
+            _editedEntry = result.ThrowIfNull(new Exception($"Victual with id:{Identifier} not found!"));
         }
     }
 
@@ -177,14 +179,14 @@
 
     private async Task PutExistingEntryAsync(Victual editedEntry)
     {
-        await Communication.BackendCommunication.SendUpdateVictualAsync(Http, Configuration, editedEntry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, editedEntry);
     }
 
     private async Task PostNewEntryAsync(Victual editedEntry)
     {
         Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId);
         Console.WriteLine($"Adding Entry with id {editedEntry.VictualId}");
-        var response = await Http.PostAsJsonAsync(Configuration["TargetApi"] + $"/victuals", editedEntry);
+        var response = await Http.PostAsJsonAsync(Configuration["TargetApi"] + $"/createvictual", editedEntry);
         Console.WriteLine(response);
     }
 

@@ -11,7 +11,10 @@ public static class BackendCommunication
         Console.WriteLine($"Updating Entry {editedEntry.VictualId} of {editedEntry.UserId}");
         
         HttpResponseMessage response = await client.PutAsJsonAsync(
-            configuration["TargetApi"] + $"/victuals/{editedEntry.UserId}/{editedEntry.VictualId}", editedEntry);
+            configuration["TargetApi"] + 
+            $"/updatevictual?userId={editedEntry.UserId}" +
+            $"&victualId={editedEntry.VictualId}", 
+            editedEntry);
 
         Console.WriteLine($"{response.StatusCode}");
         Console.WriteLine($"{await response.Content.ReadAsStringAsync()}");
@@ -23,7 +26,7 @@ public static class BackendCommunication
         {
             Console.WriteLine("Fetching Units!");
             var response =
-                await client.GetFromJsonAsync<List<Unit>>(configuration["TargetApi"] + $"/Units");
+                await client.GetFromJsonAsync<List<Unit>>(configuration["TargetApi"] + $"/units");
             List<Unit> result = response != null? response.OrderBy(unit=>unit.Symbol).ToList(): new List<Unit>();
             result.ForEach(Console.WriteLine);
             return result;
