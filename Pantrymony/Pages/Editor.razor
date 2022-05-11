@@ -140,10 +140,9 @@
         else
         {
             _operatingMode = OperatingMode.Editing;
-            var result = await Http.GetFromJsonAsync<Victual>(Configuration["TargetApi"] +
-                                                              $"/uservictual" +
-                                                              $"?userId={UserID}" +
-                                                              $"&victualId={Identifier}");
+            var getUrl =$"{Configuration["TargetApi"]}/uservictual?userId={UserID}&victualId={Identifier}";
+            Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+            var result = await Http.GetFromJsonAsync<Victual>(getUrl);
             _editedEntry = result.ThrowIfNull(new Exception($"Victual with id:{Identifier} not found!"));
         }
     }
@@ -186,7 +185,11 @@
     {
         Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId);
         Console.WriteLine($"Adding Entry with id {editedEntry.VictualId}");
-        var response = await Http.PostAsJsonAsync(Configuration["TargetApi"] + $"/createvictual", editedEntry);
+       
+        var postUrl =$"{Configuration["TargetApi"]}/createvictual";
+        Logger.LogInformation("Sending POST:[{Url}]", postUrl);
+        
+        var response = await Http.PostAsJsonAsync(postUrl, editedEntry);
         Console.WriteLine(response);
     }
 

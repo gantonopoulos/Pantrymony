@@ -24,6 +24,8 @@
     <ul>
         @foreach (Victual pantryEntry in _entries)
         {
+            Logger.LogInformation("Rendering victuals:");
+            _entries.ForEach(entry=> Logger.LogInformation("{Victual}", entry));
             <tr class="form-group">
                 <td><input @key="pantryEntry" type="checkbox" @onclick="() => { EntrySelected(pantryEntry); }"/></td>
                 <td><span class="col-form-label">@pantryEntry.Name</span></td>
@@ -65,6 +67,7 @@
         var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration);
         _units = units.ToList();
     }
+    
     private async Task<string> GetAuthenticatedUserDataAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
@@ -83,11 +86,12 @@
     {
         try
         {
-            Logger.LogInformation("Fetching Victuals!");
             var userId = await GetAuthenticatedUserDataAsync();
-            var response =
-                await Http.GetFromJsonAsync<List<Victual>>(Configuration["TargetApi"] + 
-                                                           $"/uservictuals?userId={userId}");
+            var getUrl = $"{Configuration["TargetApi"]}/uservictuals?userId={userId}";
+            Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+            Logger.LogInformation("Fetching Victuals!");
+            
+            var response = await Http.GetFromJsonAsync<List<Victual>>(getUrl);
             
             _entries = response != null? response.OrderBy(entry=>entry.Name).ToList(): new List<Victual>();
             _entries.ForEach(Console.WriteLine);
@@ -103,14 +107,14 @@
     {
         entry.Quantity++;
         await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
-        await OnInitializedAsync();
+        StateHasChanged();
     }
 
     private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
         await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
-        await OnInitializedAsync();
+        StateHasChanged();
     }
 
     private async void AddNewEntryAsync()
@@ -127,13 +131,14 @@
         }
         _selectedEntries.Clear();
         await OnInitializedAsync();
+        StateHasChanged();
     }
 
     private async Task RequestDeleteVictualAsync(Victual victual)
     {
-        await Http.DeleteAsync(Configuration["TargetApi"] + 
-                               $"/deletevictual?userId={victual.UserId}&" +
-                               $"victualId={victual.VictualId}'");
+        var deleteUrl = $"{Configuration["TargetApi"]}/deletevictual?userId={victual.UserId}&victualId={victual.VictualId}";
+        Logger.LogInformation("Sending DELETE:[{Url}]", deleteUrl);
+        await Http.DeleteAsync(deleteUrl);
     }
 
     private void EntrySelected(Victual victual)
@@ -167,7 +172,7 @@
             if (obj.Value == null || !DateTime.TryParse(obj.Value.ToString(), out var updatedDate)) return;
             entry.Expires = updatedDate;
             await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
-            await OnInitializedAsync();
+            StateHasChanged();
         }
         catch (Exception e)
         {
@@ -186,6 +191,6 @@
             return;
         entry.Unit = measurementUnit.Symbol;
         await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
-        await OnInitializedAsync();
+        StateHasChanged();
     }
 }
