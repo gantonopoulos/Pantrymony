@@ -12,11 +12,19 @@ public static class BackendCommunication
         Victual editedEntry)
     {
         string updateUrl =
-            $"{configuration["TargetApi"]}/updatevictual?userId={editedEntry.UserId}&victualId={editedEntry.VictualId}"; 
+            $"{configuration["TargetApi"]}/updatevictual?userId={editedEntry.UserId}&victualId={editedEntry.VictualId}";
         Console.WriteLine($"Sending PUT:[{updateUrl}]");
         Console.WriteLine($"Sending content: {JsonSerializer.Serialize(editedEntry)}");
-        HttpResponseMessage response = await client.PutAsJsonAsync(updateUrl, editedEntry);
+        JsonSerializerOptions opt = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = null,
+            PropertyNameCaseInsensitive = false
+        };
+
         
+        HttpResponseMessage response = await client.PutAsJsonAsync(updateUrl, editedEntry,  opt);
+        
+        Console.WriteLine($"{JsonSerializer.Serialize(response)}");
         Console.WriteLine($"Response Code: [{response.StatusCode}]");
         Console.WriteLine($"Response content: {await response.Content.ReadAsStringAsync()}");
     }
