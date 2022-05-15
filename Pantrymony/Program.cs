@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Pantrymony;
-using Pantrymony.Common;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -13,7 +12,7 @@ builder.Services.AddOidcAuthentication(options=>
 {
     builder.Configuration.Bind("Auth0", options.ProviderOptions);
     options.ProviderOptions.ResponseType = "code";
-    options.ProviderOptions.DefaultScopes.Add(Constants.EmailOidcClaimType);
+    options.ProviderOptions.AdditionalProviderParameters.Add("audience", "https://onekcjjlpe.execute-api.eu-central-1.amazonaws.com/Prod");
 }
 );
 

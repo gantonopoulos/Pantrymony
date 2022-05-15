@@ -2,11 +2,14 @@
 @using Pantrymony.Model
 @using Pantrymony.Communication
 @using System.Security.Authentication
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 @inject NavigationManager UriHelper
 @inject IConfiguration Configuration
 @inject HttpClient Http
 @inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthState
+@inject IAccessTokenProvider TokenProvider
+@inject IJSRuntime JSRuntime
 @attribute [Authorize] 
 
 <PageTitle>My Pantry + @Title</PageTitle>
@@ -67,21 +70,28 @@
         var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration);
         _units = units.ToList();
     }
-    
+
     private async Task<string> GetAuthenticatedUserDataAsync()
-    {
+    {        
         var state = await AuthState.GetAuthenticationStateAsync();
-        
+
         if (!state.User.HasClaim(claim => claim.Type == Common.Constants.EmailOidcClaimType))
         {
             const string errorMsg = "Authenticated User Email could not be retrieved";
             Logger.LogError(errorMsg);
             throw new AuthenticationException(errorMsg);
         }
-        
         return state.User.Claims.First(claim => claim.Type == Common.Constants.EmailOidcClaimType).Value;
     }
-    
+
+    private async Task<string> GetAccessTokenJwt()
+    {
+        var tokenResult = await TokenProvider.RequestAccessToken();
+        tokenResult.TryGetToken(out AccessToken token);
+        Logger.LogInformation("Access Token:{token}", token.Value);
+        return token.Value;
+    }
+
     private async Task FetchVictualsAsync()
     {
         try
@@ -90,16 +100,23 @@
             var getUrl = $"{Configuration["TargetApi"]}/uservictuals?userId={userId}";
             Logger.LogInformation("Sending GET:[{Url}]", getUrl);
             Logger.LogInformation("Fetching Victuals!");
+
+            var requestMsg = new HttpRequestMessage(HttpMethod.Get, getUrl);
+            requestMsg.Headers.Add("Authorization", "Bearer " + await GetAccessTokenJwt());
+
+            var response = await Http.SendAsync(requestMsg);
+            Logger.LogInformation("API responded with: {Response}", response);
+            if (response.IsSuccessStatusCode)
+            {
+                var responseData = await response.Content.ReadFromJsonAsync<List<Victual>>();
+                _entries = responseData != null? responseData.OrderBy(entry=>entry.Name).ToList(): new List<Victual>();
+                _entries.ForEach(Console.WriteLine);
+            }
             
-            var response = await Http.GetFromJsonAsync<List<Victual>>(getUrl);
-            
-            _entries = response != null? response.OrderBy(entry=>entry.Name).ToList(): new List<Victual>();
-            _entries.ForEach(Console.WriteLine);
         }
         catch (Exception e)
         {
-            Console.WriteLine("Victuals could not be parsed");
-            Console.WriteLine(e);
+            Logger.LogError("Victuals could not be parsed!\n{Message}{Stack}", e.Message, e.StackTrace);
         }
     }
 
