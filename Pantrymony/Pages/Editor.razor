@@ -1,12 +1,17 @@
 @page "/editor/{UserId}/{Identifier}"
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Pantrymony.Auth.Extensions
 @using Pantrymony.Communication
 @using Pantrymony.Extensions
 @using Pantrymony.Model
+@using System.Text.Json
+@using System.Text
 @inject ILogger<Editor> Logger
 @inject HttpClient Http
 @inject IConfiguration Configuration
 @inject NavigationManager UriHelper
+@inject IAccessTokenProvider TokenProvider
 
 <PageTitle>Add/Edit entry</PageTitle>
 
@@ -149,7 +154,7 @@
 
     private async Task LoadMeasurementUnits()
     {
-        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration);
+        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration, TokenProvider, Logger);
         _units = units.ToList();
     }
 
@@ -178,7 +183,7 @@
 
     private async Task PutExistingEntryAsync(Victual editedEntry)
     {
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, editedEntry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, editedEntry);
     }
 
     private async Task PostNewEntryAsync(Victual editedEntry)
@@ -187,10 +192,22 @@
         Console.WriteLine($"Adding Entry with id {editedEntry.VictualId}");
        
         var postUrl =$"{Configuration["TargetApi"]}/createvictual";
+        var postPayload = JsonSerializer.Serialize(editedEntry, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = null,
+            PropertyNameCaseInsensitive = false
+        });
         Logger.LogInformation("Sending POST:[{Url}]", postUrl);
-        
-        var response = await Http.PostAsJsonAsync(postUrl, editedEntry);
-        Console.WriteLine(response);
+        using var request = await new HttpRequestMessage(HttpMethod.Post, postUrl).AppendAuthorizationHeader(TokenProvider, Logger);
+        using var stringContent = new StringContent(postPayload, Encoding.UTF8, "application/json");
+        request.Content = stringContent;
+        using var response = await Http
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        Logger.LogInformation("POST-Response:\n{Response}",JsonSerializer.Serialize(response));
+        Logger.LogInformation("Response code: {Code}", response.StatusCode);
+        Logger.LogInformation("Response content: {Content}", await response.Content.ReadAsStringAsync());
     }
 
     private async Task UploadImage(InputFileChangeEventArgs e)

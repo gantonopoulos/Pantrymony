@@ -1,5 +1,8 @@
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
+using Pantrymony.Auth.Extensions;
 using Pantrymony.Model;
 
 namespace Pantrymony.Communication;
@@ -8,43 +11,63 @@ public static class BackendCommunication
 {
     public static async Task SendUpdateVictualAsync(
         HttpClient client, 
-        IConfiguration configuration, 
+        IConfiguration configuration,
+        IAccessTokenProvider tokenProvider,
+        ILogger logger,
         Victual editedEntry)
     {
         string updateUrl =
             $"{configuration["TargetApi"]}/updatevictual?userId={editedEntry.UserId}&victualId={editedEntry.VictualId}";
-        Console.WriteLine($"Sending PUT:[{updateUrl}]");
-        Console.WriteLine($"Sending content: {JsonSerializer.Serialize(editedEntry)}");
-        JsonSerializerOptions opt = new JsonSerializerOptions
+        var updatePayload = JsonSerializer.Serialize(editedEntry, new JsonSerializerOptions
         {
             PropertyNamingPolicy = null,
             PropertyNameCaseInsensitive = false
-        };
+        });
+        logger.LogInformation("Sending PUT:[{UpdateUrl}]",updateUrl);
+        logger.LogInformation("Sending {Content}:",updatePayload);
 
-        
-        HttpResponseMessage response = await client.PutAsJsonAsync(updateUrl, editedEntry,  opt);
-        
-        Console.WriteLine($"{JsonSerializer.Serialize(response)}");
-        Console.WriteLine($"Response Code: [{response.StatusCode}]");
-        Console.WriteLine($"Response content: {await response.Content.ReadAsStringAsync()}");
+
+        using var request = await new HttpRequestMessage(HttpMethod.Put, updateUrl).AppendAuthorizationHeader(tokenProvider, logger);
+        using var stringContent = new StringContent(updatePayload, Encoding.UTF8, "application/json");
+        request.Content = stringContent;
+
+        using var response = await client
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        logger.LogInformation("PUT-Response:\n{Response}",JsonSerializer.Serialize(response));
+        logger.LogInformation("Response code: {Code}", response.StatusCode);
+        logger.LogInformation("Response content: {Content}", await response.Content.ReadAsStringAsync());
     }
     
-    public static async Task<IEnumerable<Unit>> FetchUnitsAsync(HttpClient client, IConfiguration configuration)
+    public static async Task<IEnumerable<Unit>> FetchUnitsAsync(
+        HttpClient client, 
+        IConfiguration configuration,
+        IAccessTokenProvider tokenProvider,
+        ILogger logger)
     {
         try
         {
             var getUrl = $"{configuration["TargetApi"]}/units";
-            Console.WriteLine("Fetching Units!");
-            Console.WriteLine($"Sending GET:[{getUrl}]");
-            var response = await client.GetFromJsonAsync<List<Unit>>(getUrl);
-            List<Unit> result = response != null? response.OrderBy(unit=>unit.Symbol).ToList(): new List<Unit>();
-            result.ForEach(Console.WriteLine);
-            return result;
+            logger.LogInformation("Fetching Units!");
+            logger.LogInformation("Sending GET:[{Url}]", getUrl);
+            
+            var requestMsg = await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(tokenProvider, logger);
+            var response = await client.SendAsync(requestMsg);
+            logger.LogInformation("API responded with: {Response}", response);
+            if (response.IsSuccessStatusCode)
+            {
+                var responseData = await response.Content.ReadFromJsonAsync<List<Unit>>();
+                List<Unit> result = responseData != null ? responseData.OrderBy(unit=>unit.Symbol).ToList() : new List<Unit>();
+                result.ForEach(unit => logger.LogInformation("{Name}:{Symbol}", unit.Name, unit.Symbol));
+                return result;
+            }
+
+            return new List<Unit>();
         }
         catch (Exception e)
         {
-            Console.WriteLine("Units could not be parsed");
-            Console.WriteLine(e);
+            logger.LogError("{Message}:\n{Stack}", e.Message, e.StackTrace);
             throw;
         }
     }

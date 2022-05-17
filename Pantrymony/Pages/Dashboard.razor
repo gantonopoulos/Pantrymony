@@ -3,6 +3,7 @@
 @using Pantrymony.Communication
 @using System.Security.Authentication
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Pantrymony.Auth.Extensions
 @inject NavigationManager UriHelper
 @inject IConfiguration Configuration
 @inject HttpClient Http
@@ -67,7 +68,7 @@
     {
         await GetAuthenticatedUserDataAsync();
         await FetchVictualsAsync();
-        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration);
+        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration, TokenProvider, Logger);
         _units = units.ToList();
     }
 
@@ -84,14 +85,6 @@
         return state.User.Claims.First(claim => claim.Type == Common.Constants.EmailOidcClaimType).Value;
     }
 
-    private async Task<string> GetAccessTokenJwt()
-    {
-        var tokenResult = await TokenProvider.RequestAccessToken();
-        tokenResult.TryGetToken(out AccessToken token);
-        Logger.LogInformation("Access Token:{token}", token.Value);
-        return token.Value;
-    }
-
     private async Task FetchVictualsAsync()
     {
         try
@@ -101,18 +94,15 @@
             Logger.LogInformation("Sending GET:[{Url}]", getUrl);
             Logger.LogInformation("Fetching Victuals!");
 
-            var requestMsg = new HttpRequestMessage(HttpMethod.Get, getUrl);
-            requestMsg.Headers.Add("Authorization", "Bearer " + await GetAccessTokenJwt());
-
+            var requestMsg = await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(TokenProvider, Logger);
             var response = await Http.SendAsync(requestMsg);
             Logger.LogInformation("API responded with: {Response}", response);
             if (response.IsSuccessStatusCode)
             {
                 var responseData = await response.Content.ReadFromJsonAsync<List<Victual>>();
-                _entries = responseData != null? responseData.OrderBy(entry=>entry.Name).ToList(): new List<Victual>();
+                _entries = responseData != null ? responseData.OrderBy(entry => entry.Name).ToList() : new List<Victual>();
                 _entries.ForEach(Console.WriteLine);
             }
-            
         }
         catch (Exception e)
         {
@@ -123,14 +113,14 @@
     private async Task IncrementQuantity(Victual entry)
     {
         entry.Quantity++;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
         StateHasChanged();
     }
 
     private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
         StateHasChanged();
     }
 
@@ -155,7 +145,10 @@
     {
         var deleteUrl = $"{Configuration["TargetApi"]}/deletevictual?userId={victual.UserId}&victualId={victual.VictualId}";
         Logger.LogInformation("Sending DELETE:[{Url}]", deleteUrl);
-        await Http.DeleteAsync(deleteUrl);
+        using var request = await new HttpRequestMessage(HttpMethod.Delete, deleteUrl).AppendAuthorizationHeader(TokenProvider, Logger);
+        using var response = await Http
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
     }
 
     private void EntrySelected(Victual victual)
@@ -188,7 +181,7 @@
         {
             if (obj.Value == null || !DateTime.TryParse(obj.Value.ToString(), out var updatedDate)) return;
             entry.Expires = updatedDate;
-            await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
+            await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
             StateHasChanged();
         }
         catch (Exception e)
@@ -207,7 +200,7 @@
         if(measurementUnit == null)
             return;
         entry.Unit = measurementUnit.Symbol;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
         StateHasChanged();
     }
 }
