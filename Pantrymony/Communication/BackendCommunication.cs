@@ -51,7 +51,7 @@ public static class BackendCommunication
     {
         try
         {
-            var getUrl = $"{configuration["TargetApi"]}/units";
+            var getUrl = $"{configuration["AuthTargetApi"]}/units";
             logger.LogInformation("Fetching Units!");
             logger.LogInformation("Sending GET:[{Url}]", getUrl);
 

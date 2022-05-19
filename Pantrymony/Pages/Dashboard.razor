@@ -92,7 +92,7 @@
         try
         {
             var userId = await GetAuthenticatedUserDataAsync();
-            var getUrl = $"{Configuration["TargetApi"]}/uservictuals?userId={userId}";
+            var getUrl = $"{Configuration["AuthTargetApi"]}/uservictuals?userId={userId}";
             Logger.LogInformation("Sending GET:[{Url}]", getUrl);
             Logger.LogInformation("Fetching Victuals!");
 

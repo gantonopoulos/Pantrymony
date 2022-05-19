@@ -19,6 +19,7 @@ public static class Authentication
             var userOidRaw = await jsRuntime.InvokeAsync<string>("sessionStorage.getItem", authSettings.OidcUserKey);
             var user = JsonSerializer.Deserialize<AuthenticationTokenInfo>(userOidRaw)
                 .ThrowIfNull(new Exception($"Oidc [{authSettings.OidcUserKey}] data deserialization failed!"));
+            logger.LogInformation("Token: {Token}", user.IdToken);
             return user.IdToken.ThrowIfNull(new Exception("ID Token not found!"));
         }
         catch (Exception e)
