@@ -2,15 +2,17 @@
 @using Pantrymony.Model
 @using Pantrymony.Communication
 @using System.Security.Authentication
+@using System.Text.Json
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 @using Pantrymony.Auth.Extensions
+@using Auth
 @inject NavigationManager UriHelper
 @inject IConfiguration Configuration
 @inject HttpClient Http
 @inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthState
 @inject IAccessTokenProvider TokenProvider
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JsRuntime
 @attribute [Authorize] 
 
 <PageTitle>My Pantry + @Title</PageTitle>
@@ -68,7 +70,7 @@
     {
         await GetAuthenticatedUserDataAsync();
         await FetchVictualsAsync();
-        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration, TokenProvider, Logger);
+        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration, JsRuntime, Logger);
         _units = units.ToList();
     }
 
@@ -84,7 +86,7 @@
         }
         return state.User.Claims.First(claim => claim.Type == Common.Constants.EmailOidcClaimType).Value;
     }
-
+  
     private async Task FetchVictualsAsync()
     {
         try
@@ -94,7 +96,8 @@
             Logger.LogInformation("Sending GET:[{Url}]", getUrl);
             Logger.LogInformation("Fetching Victuals!");
 
-            var requestMsg = await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(TokenProvider, Logger);
+            var requestMsg = await new HttpRequestMessage(HttpMethod.Get, getUrl)
+                .AppendAuthorizationHeader(await Auth.Authentication.ReadIdToken(JsRuntime, Logger));
             var response = await Http.SendAsync(requestMsg);
             Logger.LogInformation("API responded with: {Response}", response);
             if (response.IsSuccessStatusCode)
@@ -113,14 +116,14 @@
     private async Task IncrementQuantity(Victual entry)
     {
         entry.Quantity++;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
         StateHasChanged();
     }
 
     private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
         StateHasChanged();
     }
 
@@ -145,7 +148,8 @@
     {
         var deleteUrl = $"{Configuration["TargetApi"]}/deletevictual?userId={victual.UserId}&victualId={victual.VictualId}";
         Logger.LogInformation("Sending DELETE:[{Url}]", deleteUrl);
-        using var request = await new HttpRequestMessage(HttpMethod.Delete, deleteUrl).AppendAuthorizationHeader(TokenProvider, Logger);
+        using var request = await new HttpRequestMessage(HttpMethod.Delete, deleteUrl)
+            .AppendAuthorizationHeader(await Auth.Authentication.ReadIdToken(JsRuntime, Logger));
         using var response = await Http
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
             .ConfigureAwait(false);
@@ -181,7 +185,7 @@
         {
             if (obj.Value == null || !DateTime.TryParse(obj.Value.ToString(), out var updatedDate)) return;
             entry.Expires = updatedDate;
-            await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
+            await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
             StateHasChanged();
         }
         catch (Exception e)
@@ -200,7 +204,7 @@
         if(measurementUnit == null)
             return;
         entry.Unit = measurementUnit.Symbol;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, TokenProvider, Logger, entry);
+        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
         StateHasChanged();
     }
 }

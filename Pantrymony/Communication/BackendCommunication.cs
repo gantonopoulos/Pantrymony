@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
+using Microsoft.JSInterop;
 using Pantrymony.Auth.Extensions;
 using Pantrymony.Model;
 
@@ -10,9 +11,9 @@ namespace Pantrymony.Communication;
 public static class BackendCommunication
 {
     public static async Task SendUpdateVictualAsync(
-        HttpClient client, 
+        HttpClient client,
         IConfiguration configuration,
-        IAccessTokenProvider tokenProvider,
+        IJSRuntime jsRuntime,
         ILogger logger,
         Victual editedEntry)
     {
@@ -23,11 +24,13 @@ public static class BackendCommunication
             PropertyNamingPolicy = null,
             PropertyNameCaseInsensitive = false
         });
-        logger.LogInformation("Sending PUT:[{UpdateUrl}]",updateUrl);
-        logger.LogInformation("Sending {Content}:",updatePayload);
+        logger.LogInformation("Sending PUT:[{UpdateUrl}]", updateUrl);
+        logger.LogInformation("Sending {Content}:", updatePayload);
 
 
-        using var request = await new HttpRequestMessage(HttpMethod.Put, updateUrl).AppendAuthorizationHeader(tokenProvider, logger);
+        using var request =
+            await new HttpRequestMessage(HttpMethod.Put, updateUrl).AppendAuthorizationHeader(
+                await Auth.Authentication.ReadIdToken(jsRuntime, logger));
         using var stringContent = new StringContent(updatePayload, Encoding.UTF8, "application/json");
         request.Content = stringContent;
 
@@ -35,15 +38,15 @@ public static class BackendCommunication
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        logger.LogInformation("PUT-Response:\n{Response}",JsonSerializer.Serialize(response));
+        logger.LogInformation("PUT-Response:\n{Response}", JsonSerializer.Serialize(response));
         logger.LogInformation("Response code: {Code}", response.StatusCode);
         logger.LogInformation("Response content: {Content}", await response.Content.ReadAsStringAsync());
     }
-    
+
     public static async Task<IEnumerable<Unit>> FetchUnitsAsync(
         HttpClient client, 
         IConfiguration configuration,
-        IAccessTokenProvider tokenProvider,
+        IJSRuntime jsRuntime,
         ILogger logger)
     {
         try
@@ -51,14 +54,18 @@ public static class BackendCommunication
             var getUrl = $"{configuration["TargetApi"]}/units";
             logger.LogInformation("Fetching Units!");
             logger.LogInformation("Sending GET:[{Url}]", getUrl);
-            
-            var requestMsg = await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(tokenProvider, logger);
+
+            var requestMsg =
+                await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(
+                    await Auth.Authentication.ReadIdToken(jsRuntime, logger));
             var response = await client.SendAsync(requestMsg);
             logger.LogInformation("API responded with: {Response}", response);
             if (response.IsSuccessStatusCode)
             {
                 var responseData = await response.Content.ReadFromJsonAsync<List<Unit>>();
-                List<Unit> result = responseData != null ? responseData.OrderBy(unit=>unit.Symbol).ToList() : new List<Unit>();
+                List<Unit> result = responseData != null
+                    ? responseData.OrderBy(unit => unit.Symbol).ToList()
+                    : new List<Unit>();
                 result.ForEach(unit => logger.LogInformation("{Name}:{Symbol}", unit.Name, unit.Symbol));
                 return result;
             }
