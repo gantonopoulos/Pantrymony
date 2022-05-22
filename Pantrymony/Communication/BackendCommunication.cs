@@ -43,7 +43,7 @@ internal static class BackendCommunication
     {
         try
         {
-            var getUrl = $"{injectedDependencies.Configuration["AuthTargetApi"]}/units";
+            var getUrl = $"{injectedDependencies.Configuration["TargetApi"]}/units";
             injectedDependencies.Logger.LogInformation("Fetching Units!");
             injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
 
@@ -86,10 +86,14 @@ internal static class BackendCommunication
             var requestMsg =
                 await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(injectedDependencies);
             var response = await injectedDependencies.HttpClient.SendAsync(requestMsg);
-            injectedDependencies.Logger.LogInformation("API responded with: {Response}", response);
+
             response.EnsureSuccessStatusCode();
-            return (await response.Content.ReadFromJsonAsync<Victual>())
-                .ThrowIfNull(new Exception($"Victual with id:{victualId} not found!"));
+            var responseContent = await response.Content.ReadAsStringAsync();
+            injectedDependencies.Logger.LogInformation("API responded with: {Response}:\n{Content}", response,
+                responseContent);
+            return (await response.Content.ReadFromJsonAsync<List<Victual>>())
+                .ThrowIfNull(new Exception($"Victual with id:{victualId} not found!"))
+                .Single();
         }
         catch (Exception e)
         {
@@ -104,7 +108,7 @@ internal static class BackendCommunication
     {
         try
         {
-            var getUrl = $"{injectedDependencies.Configuration["AuthTargetApi"]}/uservictuals?userId={userId}";
+            var getUrl = $"{injectedDependencies.Configuration["TargetApi"]}/uservictuals?userId={userId}";
             injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
             injectedDependencies.Logger.LogInformation("Fetching Victuals!");
 
