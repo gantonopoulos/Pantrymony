@@ -1,18 +1,13 @@
 @page "/editor/{UserId}/{Identifier}"
 @using Microsoft.AspNetCore.Components
-@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
-@using Pantrymony.Auth.Extensions
 @using Pantrymony.Communication
 @using Pantrymony.Extensions
 @using Pantrymony.Model
-@using System.Text.Json
-@using System.Text
 @using Pantrymony.Common
 @inject ILogger<Editor> Logger
-@inject HttpClient Http
+@inject HttpClient HttpClient
 @inject IConfiguration Configuration
 @inject NavigationManager UriHelper
-@inject IAccessTokenProvider TokenProvider
 @inject IJSRuntime JsRuntime
 <PageTitle>Add/Edit entry</PageTitle>
 
@@ -21,11 +16,19 @@
 <table class="table">
     <tr class="form-group">
         <td>
-                <span class="col-form-label">Upload Image files</span>
-                <InputFile id="fileInput" OnChange="UploadImage" accept=".png,.jpg,jpeg"/>
+            <span class="col-form-label">Upload Image files</span>
+            <InputFile id="fileInput" OnChange="VictualImageChanged" accept=".png,.jpg,jpeg"/>
         </td>
         <td>
-            <img src="@_editedEntry.ImageUrl" alt="">
+            @if (!string.IsNullOrEmpty(_editedEntry.ImageUrl))
+            {
+                <img id="VictualImage" alt="" src="">
+            }
+            else
+            {
+                <img id="VictualImage" src = @_editedEntry.ImageUrl alt="">
+            }
+            
         </td>
     </tr>
     <tr class="form-group">
@@ -109,7 +112,9 @@
 </table>
 
 
+
 @code {
+    
 
     private enum OperatingMode
     {
@@ -123,6 +128,8 @@
     [Parameter]
     public string Identifier { get; set; }
 
+    private IBrowserFile _selectedVitualImage;
+
     private OperatingMode _operatingMode = OperatingMode.None;
     private Victual _editedEntry = new();
     private List<Unit> _units = new();
@@ -132,7 +139,7 @@
     {
         _injectedDependencies.JScriptRuntime = JsRuntime;
         _injectedDependencies.Logger = Logger;
-        _injectedDependencies.HttpClient = Http;
+        _injectedDependencies.HttpClient = HttpClient;
         _injectedDependencies.Configuration = Configuration;
         
         await LoadMeasurementUnits();
@@ -190,16 +197,26 @@
         await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, editedEntry);
     }
 
-    private async Task UploadImage(InputFileChangeEventArgs e)
+    private async Task VictualImageChanged(InputFileChangeEventArgs fileChangeEventArgs)
     {
-        var resizedFile = await e.File.RequestImageFileAsync("image/png", 300, 500);
-        using (Stream fs = resizedFile.OpenReadStream(resizedFile.Size))
+        try
         {
-            
+            _editedEntry.ImageUrl = string.Empty;
+            var imageFile = fileChangeEventArgs.File;
+            _selectedVitualImage = 
+                await imageFile.RequestImageFileAsync("image/jpg", 300, 500);
+            var imageStream = _selectedVitualImage.OpenReadStream();
+            var dotnetImageStream = new DotNetStreamReference(imageStream);
+            var jsUtils = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/util.js");
+            await jsUtils.InvokeVoidAsync("setImageUsingStreaming", "VictualImage", dotnetImageStream);
         }
-                
+        catch (Exception ex)
+        {
+            Logger.LogError("{Message}:{Stack}",ex.Message,ex.StackTrace);
+            throw;
+        }
     }
-
+ 
     private void ExpirationDateChanged(ChangeEventArgs obj)
     {
         if(obj.Value != null && DateTime.TryParse(obj.Value.ToString(), out var updatedDate))
