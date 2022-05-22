@@ -1,15 +1,21 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.JSInterop;
 using Pantrymony.Auth.Extensions;
+using Pantrymony.Common;
 using Pantrymony.Model;
 
 namespace Pantrymony.Communication;
 
-public static class BackendCommunication
+internal static class BackendCommunication
 {
+    public static async Task SendUpdateVictualAsync(PageInjectedDependencies deps, Victual editedEntry)
+    {
+        await SendUpdateVictualAsync(deps.HttpClient, deps.Configuration, deps.JsRuntime, deps.Logger,
+            editedEntry);
+    }
+    
     public static async Task SendUpdateVictualAsync(
         HttpClient client,
         IConfiguration configuration,
@@ -78,4 +84,41 @@ public static class BackendCommunication
             throw;
         }
     }
+    
+    // public static async Task<IEnumerable<Unit>> FetchVictualOfUser(
+    //     HttpClient client, 
+    //     IConfiguration configuration,
+    //     IJSRuntime jsRuntime,
+    //     ILogger logger)
+    // {
+    //     try
+    //     {
+    //         var getUrl =$"{configuration["TargetApi"]}/uservictual?userId={UserID}&victualId={Identifier}";
+    //         Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+    //         var requestMsg =
+    //             await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(
+    //                 await Auth.Authentication.ReadIdToken(jsRuntime, logger));
+    //         var response = await client.SendAsync(requestMsg);
+    //         logger.LogInformation("API responded with: {Response}", response);
+    //         if (response.IsSuccessStatusCode)
+    //         {
+    //             var responseData = await response.Content.ReadFromJsonAsync<List<Unit>>();
+    //             List<Unit> result = responseData != null
+    //                 ? responseData.OrderBy(unit => unit.Symbol).ToList()
+    //                 : new List<Unit>();
+    //             result.ForEach(unit => logger.LogInformation("{Name}:{Symbol}", unit.Name, unit.Symbol));
+    //             return result;
+    //         }
+    //
+    //       
+    //         var result = await Http.GetFromJsonAsync<Victual>(getUrl);
+    //         _editedEntry = result.ThrowIfNull(new Exception($"Victual with id:{Identifier} not found!"));
+    //         return new List<Unit>();
+    //     }
+    //     catch (Exception e)
+    //     {
+    //         logger.LogError("{Message}:\n{Stack}", e.Message, e.StackTrace);
+    //         throw;
+    //     }
+    // }
 }

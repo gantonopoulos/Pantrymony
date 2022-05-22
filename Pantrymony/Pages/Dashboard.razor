@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 @using Pantrymony.Auth.Extensions
 @using Auth
+@using Pantrymony.Common
 @inject NavigationManager UriHelper
 @inject IConfiguration Configuration
 @inject HttpClient Http
@@ -64,7 +65,7 @@
     private List<Victual> _entries = new();
     private List<Unit> _units = new();
     private string Title;
-
+    PageInjectedDependencies deps = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -78,13 +79,13 @@
     {        
         var state = await AuthState.GetAuthenticationStateAsync();
 
-        if (!state.User.HasClaim(claim => claim.Type == Common.Constants.EmailOidcClaimType))
+        if (!state.User.HasClaim(claim => claim.Type == Constants.EmailOidcClaimType))
         {
             const string errorMsg = "Authenticated User Email could not be retrieved";
             Logger.LogError(errorMsg);
             throw new AuthenticationException(errorMsg);
         }
-        return state.User.Claims.First(claim => claim.Type == Common.Constants.EmailOidcClaimType).Value;
+        return state.User.Claims.First(claim => claim.Type == Constants.EmailOidcClaimType).Value;
     }
   
     private async Task FetchVictualsAsync()
@@ -116,7 +117,8 @@
     private async Task IncrementQuantity(Victual entry)
     {
         entry.Quantity++;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
+        await BackendCommunication.SendUpdateVictualAsync(deps, entry);
+        //await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
         StateHasChanged();
     }
 
