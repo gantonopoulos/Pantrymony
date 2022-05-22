@@ -1,78 +1,66 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using Microsoft.JSInterop;
 using Pantrymony.Auth.Extensions;
 using Pantrymony.Common;
+using Pantrymony.Extensions;
 using Pantrymony.Model;
 
 namespace Pantrymony.Communication;
 
 internal static class BackendCommunication
 {
-    public static async Task SendUpdateVictualAsync(PageInjectedDependencies deps, Victual editedEntry)
-    {
-        await SendUpdateVictualAsync(deps.HttpClient, deps.Configuration, deps.JsRuntime, deps.Logger,
-            editedEntry);
-    }
-    
     public static async Task SendUpdateVictualAsync(
-        HttpClient client,
-        IConfiguration configuration,
-        IJSRuntime jsRuntime,
-        ILogger logger,
+        PageInjectedDependencies injectedDependencies,
         Victual editedEntry)
     {
         string updateUrl =
-            $"{configuration["TargetApi"]}/updatevictual?userId={editedEntry.UserId}&victualId={editedEntry.VictualId}";
+            $"{injectedDependencies.Configuration["TargetApi"]}/updatevictual?userId={editedEntry.UserId}&victualId={editedEntry.VictualId}";
         var updatePayload = JsonSerializer.Serialize(editedEntry, new JsonSerializerOptions
         {
             PropertyNamingPolicy = null,
             PropertyNameCaseInsensitive = false
         });
-        logger.LogInformation("Sending PUT:[{UpdateUrl}]", updateUrl);
-        logger.LogInformation("Sending {Content}:", updatePayload);
+        injectedDependencies.Logger.LogInformation("Sending PUT:[{UpdateUrl}]", updateUrl);
+        injectedDependencies.Logger.LogInformation("Sending {Content}:", updatePayload);
 
 
         using var request =
-            await new HttpRequestMessage(HttpMethod.Put, updateUrl).AppendAuthorizationHeader(
-                await Auth.Authentication.ReadIdToken(jsRuntime, logger));
+            await new HttpRequestMessage(HttpMethod.Put, updateUrl).AppendAuthorizationHeader(injectedDependencies);
         using var stringContent = new StringContent(updatePayload, Encoding.UTF8, "application/json");
         request.Content = stringContent;
 
-        using var response = await client
+        using var response = await injectedDependencies.HttpClient
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        logger.LogInformation("PUT-Response:\n{Response}", JsonSerializer.Serialize(response));
-        logger.LogInformation("Response code: {Code}", response.StatusCode);
-        logger.LogInformation("Response content: {Content}", await response.Content.ReadAsStringAsync());
+        injectedDependencies.Logger.LogInformation("PUT-Response:\n{Response}", JsonSerializer.Serialize(response));
+        injectedDependencies.Logger.LogInformation("Response code: {Code}", response.StatusCode);
+        injectedDependencies.Logger.LogInformation("Response content: {Content}", await response.Content.ReadAsStringAsync());
     }
 
-    public static async Task<IEnumerable<Unit>> FetchUnitsAsync(
-        HttpClient client, 
-        IConfiguration configuration,
-        IJSRuntime jsRuntime,
-        ILogger logger)
+    public static async Task<IEnumerable<Unit>> FetchUnitsAsync(PageInjectedDependencies injectedDependencies)
     {
         try
         {
-            var getUrl = $"{configuration["AuthTargetApi"]}/units";
-            logger.LogInformation("Fetching Units!");
-            logger.LogInformation("Sending GET:[{Url}]", getUrl);
+            var getUrl = $"{injectedDependencies.Configuration["AuthTargetApi"]}/units";
+            injectedDependencies.Logger.LogInformation("Fetching Units!");
+            injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
 
             var requestMsg =
-                await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(
-                    await Auth.Authentication.ReadIdToken(jsRuntime, logger));
-            var response = await client.SendAsync(requestMsg);
-            logger.LogInformation("API responded with: {Response}", response);
+                await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(injectedDependencies);
+            var response = await injectedDependencies.HttpClient.SendAsync(requestMsg);
+            injectedDependencies.Logger.LogInformation("API responded with: {Response}", response);
+            response.EnsureSuccessStatusCode();
             if (response.IsSuccessStatusCode)
             {
                 var responseData = await response.Content.ReadFromJsonAsync<List<Unit>>();
-                List<Unit> result = responseData != null
+                var result = responseData != null
                     ? responseData.OrderBy(unit => unit.Symbol).ToList()
                     : new List<Unit>();
-                result.ForEach(unit => logger.LogInformation("{Name}:{Symbol}", unit.Name, unit.Symbol));
+                result.ForEach(unit => 
+                    injectedDependencies.Logger
+                        .LogInformation("{Name}:{Symbol}", unit.Name, unit.Symbol));
                 return result;
             }
 
@@ -80,45 +68,105 @@ internal static class BackendCommunication
         }
         catch (Exception e)
         {
-            logger.LogError("{Message}:\n{Stack}", e.Message, e.StackTrace);
+            injectedDependencies.Logger.LogError("{Message}:\n{Stack}", e.Message, e.StackTrace);
             throw;
         }
     }
     
-    // public static async Task<IEnumerable<Unit>> FetchVictualOfUser(
-    //     HttpClient client, 
-    //     IConfiguration configuration,
-    //     IJSRuntime jsRuntime,
-    //     ILogger logger)
-    // {
-    //     try
-    //     {
-    //         var getUrl =$"{configuration["TargetApi"]}/uservictual?userId={UserID}&victualId={Identifier}";
-    //         Logger.LogInformation("Sending GET:[{Url}]", getUrl);
-    //         var requestMsg =
-    //             await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(
-    //                 await Auth.Authentication.ReadIdToken(jsRuntime, logger));
-    //         var response = await client.SendAsync(requestMsg);
-    //         logger.LogInformation("API responded with: {Response}", response);
-    //         if (response.IsSuccessStatusCode)
-    //         {
-    //             var responseData = await response.Content.ReadFromJsonAsync<List<Unit>>();
-    //             List<Unit> result = responseData != null
-    //                 ? responseData.OrderBy(unit => unit.Symbol).ToList()
-    //                 : new List<Unit>();
-    //             result.ForEach(unit => logger.LogInformation("{Name}:{Symbol}", unit.Name, unit.Symbol));
-    //             return result;
-    //         }
-    //
-    //       
-    //         var result = await Http.GetFromJsonAsync<Victual>(getUrl);
-    //         _editedEntry = result.ThrowIfNull(new Exception($"Victual with id:{Identifier} not found!"));
-    //         return new List<Unit>();
-    //     }
-    //     catch (Exception e)
-    //     {
-    //         logger.LogError("{Message}:\n{Stack}", e.Message, e.StackTrace);
-    //         throw;
-    //     }
-    // }
+    public static async Task<Victual> FetchVictualOfUser(
+        string userId, 
+        string victualId, 
+        PageInjectedDependencies injectedDependencies)
+    {
+        try
+        {
+            var getUrl =
+                $"{injectedDependencies.Configuration["TargetApi"]}/uservictual?userId={userId}&victualId={victualId}";
+            injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+            var requestMsg =
+                await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(injectedDependencies);
+            var response = await injectedDependencies.HttpClient.SendAsync(requestMsg);
+            injectedDependencies.Logger.LogInformation("API responded with: {Response}", response);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<Victual>())
+                .ThrowIfNull(new Exception($"Victual with id:{victualId} not found!"));
+        }
+        catch (Exception e)
+        {
+            injectedDependencies.Logger.LogError("{Message}:\n{Stack}", e.Message, e.StackTrace);
+            throw;
+        }
+    }
+    
+    public static async Task<IEnumerable<Victual>> FetchVictualsAsync(
+        string userId,  
+        PageInjectedDependencies injectedDependencies)
+    {
+        try
+        {
+            var getUrl = $"{injectedDependencies.Configuration["AuthTargetApi"]}/uservictuals?userId={userId}";
+            injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+            injectedDependencies.Logger.LogInformation("Fetching Victuals!");
+
+            var requestMsg = await new HttpRequestMessage(HttpMethod.Get, getUrl)
+                .AppendAuthorizationHeader(injectedDependencies);
+            var response = await injectedDependencies.HttpClient.SendAsync(requestMsg);
+            injectedDependencies.Logger.LogInformation("API responded with: {Response}", response);
+            if (response.IsSuccessStatusCode)
+            {
+                var responseData = await response.Content.ReadFromJsonAsync<List<Victual>>();
+                var entries = responseData != null 
+                    ? responseData.OrderBy(entry => entry.Name).ToList() 
+                    : new List<Victual>();
+                entries.ForEach(Console.WriteLine);
+                return entries;
+            }
+
+            return new List<Victual>();
+        }
+        catch (Exception e)
+        {
+            injectedDependencies.Logger.LogError("Victuals could not be parsed!\n{Message}{Stack}", e.Message, e.StackTrace);
+            throw;
+        }
+    }
+
+    public static async Task DeleteVictualAsync(Victual victual, PageInjectedDependencies injectedDependencies)
+    {
+        var deleteUrl =
+            $"{injectedDependencies.Configuration["TargetApi"]}/deletevictual?userId={victual.UserId}&victualId={victual.VictualId}";
+        injectedDependencies.Logger.LogInformation("Sending DELETE:[{Url}]", deleteUrl);
+        using var request = await new HttpRequestMessage(HttpMethod.Delete, deleteUrl)
+            .AppendAuthorizationHeader(injectedDependencies);
+        using var response = await injectedDependencies.HttpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+    }
+
+    public static async Task PostNewEntryAsync(Victual editedEntry, PageInjectedDependencies injectedDependencies)
+    {
+        injectedDependencies.Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId);
+
+        var postUrl = $"{injectedDependencies.Configuration["TargetApi"]}/createvictual";
+        var postPayload = JsonSerializer.Serialize(editedEntry, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = null,
+            PropertyNameCaseInsensitive = false
+        });
+        injectedDependencies.Logger.LogInformation("Sending POST:[{Url}]", postUrl);
+        using var request = await new HttpRequestMessage(HttpMethod.Post, postUrl)
+            .AppendAuthorizationHeader(injectedDependencies);
+        using var stringContent = new StringContent(postPayload, Encoding.UTF8, "application/json");
+        request.Content = stringContent;
+        using var response = await injectedDependencies.HttpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        injectedDependencies.Logger.LogInformation("POST-Response:\n{Response}", JsonSerializer.Serialize(response));
+        injectedDependencies.Logger.LogInformation("Response code: {Code}", response.StatusCode);
+        injectedDependencies.Logger.LogInformation("Response content: {Content}",
+            await response.Content.ReadAsStringAsync());
+    }
+
+
 }

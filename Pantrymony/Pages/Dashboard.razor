@@ -1,22 +1,17 @@
 @page "/"
 @using Pantrymony.Model
 @using Pantrymony.Communication
-@using System.Security.Authentication
-@using System.Text.Json
-@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
-@using Pantrymony.Auth.Extensions
-@using Auth
 @using Pantrymony.Common
+@using Pantrymony.Extensions
 @inject NavigationManager UriHelper
 @inject IConfiguration Configuration
 @inject HttpClient Http
 @inject ILogger<Dashboard> Logger
 @inject AuthenticationStateProvider AuthState
-@inject IAccessTokenProvider TokenProvider
 @inject IJSRuntime JsRuntime
 @attribute [Authorize] 
 
-<PageTitle>My Pantry + @Title</PageTitle>
+<PageTitle>My Pantry + @_title</PageTitle>
 
 <h1>My Products</h1>
 
@@ -64,74 +59,58 @@
     private readonly List<Victual> _selectedEntries = new();
     private List<Victual> _entries = new();
     private List<Unit> _units = new();
-    private string Title;
-    PageInjectedDependencies deps = new();
+    private string _title;
+
+    private readonly PageInjectedDependencies _injectedDependencies = new();
 
     protected override async Task OnInitializedAsync()
     {
-        await GetAuthenticatedUserDataAsync();
-        await FetchVictualsAsync();
-        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration, JsRuntime, Logger);
-        _units = units.ToList();
+        _injectedDependencies.JScriptRuntime = JsRuntime;
+        _injectedDependencies.Logger = Logger;
+        _injectedDependencies.HttpClient = Http;
+        _injectedDependencies.Configuration = Configuration;
+
+        _entries = (await BackendCommunication
+            .FetchVictualsAsync(await GetLoggedInUserId(), _injectedDependencies)).ToList();
+        _units = (await BackendCommunication.FetchUnitsAsync(_injectedDependencies)).ToList();
     }
 
-    private async Task<string> GetAuthenticatedUserDataAsync()
-    {        
-        var state = await AuthState.GetAuthenticationStateAsync();
-
-        if (!state.User.HasClaim(claim => claim.Type == Constants.EmailOidcClaimType))
-        {
-            const string errorMsg = "Authenticated User Email could not be retrieved";
-            Logger.LogError(errorMsg);
-            throw new AuthenticationException(errorMsg);
-        }
-        return state.User.Claims.First(claim => claim.Type == Constants.EmailOidcClaimType).Value;
-    }
-  
-    private async Task FetchVictualsAsync()
+    private async Task<string> GetLoggedInUserId()
     {
         try
         {
-            var userId = await GetAuthenticatedUserDataAsync();
-            var getUrl = $"{Configuration["AuthTargetApi"]}/uservictuals?userId={userId}";
-            Logger.LogInformation("Sending GET:[{Url}]", getUrl);
-            Logger.LogInformation("Fetching Victuals!");
-
-            var requestMsg = await new HttpRequestMessage(HttpMethod.Get, getUrl)
-                .AppendAuthorizationHeader(await Auth.Authentication.ReadIdToken(JsRuntime, Logger));
-            var response = await Http.SendAsync(requestMsg);
-            Logger.LogInformation("API responded with: {Response}", response);
-            if (response.IsSuccessStatusCode)
-            {
-                var responseData = await response.Content.ReadFromJsonAsync<List<Victual>>();
-                _entries = responseData != null ? responseData.OrderBy(entry => entry.Name).ToList() : new List<Victual>();
-                _entries.ForEach(Console.WriteLine);
-            }
+            var state = await AuthState.GetAuthenticationStateAsync();
+            state.ThrowIf(
+                authState =>
+                    !authState.User.HasClaim(claim => claim.Type == Constants.EmailOidcClaimType),
+                new Exception("Authenticated User-Email could not be retrieved"));
+            return state.User.Claims.First(claim => claim.Type == Constants.EmailOidcClaimType).Value;
         }
         catch (Exception e)
         {
-            Logger.LogError("Victuals could not be parsed!\n{Message}{Stack}", e.Message, e.StackTrace);
+            Logger.LogError("{Message}:{Stack}", e.Message, e.StackTrace);
+            throw;
         }
+        
     }
 
     private async Task IncrementQuantity(Victual entry)
     {
         entry.Quantity++;
-        await BackendCommunication.SendUpdateVictualAsync(deps, entry);
-        //await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
+        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
         StateHasChanged();
     }
 
     private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
+        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
         StateHasChanged();
     }
 
     private async void AddNewEntryAsync()
     {
-        var userId = await GetAuthenticatedUserDataAsync();
+        var userId = await GetLoggedInUserId();
         UriHelper.NavigateTo($"editor/{userId}/{Guid.Empty.ToString()}");
     }
 
@@ -139,22 +118,11 @@
     {
         foreach (var entry in _selectedEntries)
         {
-            await RequestDeleteVictualAsync(entry);
+            await BackendCommunication.DeleteVictualAsync(entry, _injectedDependencies);
         }
         _selectedEntries.Clear();
         await OnInitializedAsync();
         StateHasChanged();
-    }
-
-    private async Task RequestDeleteVictualAsync(Victual victual)
-    {
-        var deleteUrl = $"{Configuration["TargetApi"]}/deletevictual?userId={victual.UserId}&victualId={victual.VictualId}";
-        Logger.LogInformation("Sending DELETE:[{Url}]", deleteUrl);
-        using var request = await new HttpRequestMessage(HttpMethod.Delete, deleteUrl)
-            .AppendAuthorizationHeader(await Auth.Authentication.ReadIdToken(JsRuntime, Logger));
-        using var response = await Http
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
-            .ConfigureAwait(false);
     }
 
     private void EntrySelected(Victual victual)
@@ -173,7 +141,7 @@
 
     private async void EditSelectedEntryAsync()
     {
-        var userId = await GetAuthenticatedUserDataAsync();
+        var userId = await GetLoggedInUserId();
         UriHelper.NavigateTo($"editor/{userId}/{_selectedEntries.First().VictualId}");
     }
 
@@ -187,7 +155,7 @@
         {
             if (obj.Value == null || !DateTime.TryParse(obj.Value.ToString(), out var updatedDate)) return;
             entry.Expires = updatedDate;
-            await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
+            await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
             StateHasChanged();
         }
         catch (Exception e)
@@ -206,7 +174,7 @@
         if(measurementUnit == null)
             return;
         entry.Unit = measurementUnit.Symbol;
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, entry);
+        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
         StateHasChanged();
     }
 }

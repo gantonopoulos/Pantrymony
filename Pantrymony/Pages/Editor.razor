@@ -7,6 +7,7 @@
 @using Pantrymony.Model
 @using System.Text.Json
 @using System.Text
+@using Pantrymony.Common
 @inject ILogger<Editor> Logger
 @inject HttpClient Http
 @inject IConfiguration Configuration
@@ -118,16 +119,22 @@
     }
     
     [Parameter]
-    public string UserID { get; set; }
+    public string UserId { get; set; }
     [Parameter]
     public string Identifier { get; set; }
 
     private OperatingMode _operatingMode = OperatingMode.None;
     private Victual _editedEntry = new();
     private List<Unit> _units = new();
-
+    private readonly PageInjectedDependencies _injectedDependencies = new();
+    
     protected override async Task OnInitializedAsync()
     {
+        _injectedDependencies.JScriptRuntime = JsRuntime;
+        _injectedDependencies.Logger = Logger;
+        _injectedDependencies.HttpClient = Http;
+        _injectedDependencies.Configuration = Configuration;
+        
         await LoadMeasurementUnits();
         Identifier.ThrowIfNull(new ArgumentNullException(nameof(Identifier)));
         if (Guid.Parse(Identifier!) == Guid.Empty)
@@ -135,7 +142,7 @@
             _operatingMode = OperatingMode.Adding;
             _editedEntry = new Victual
             {
-                UserId = UserID,
+                UserId = UserId,
                 VictualId = Guid.NewGuid(),
                 Expires = DateTime.Now,
                 ImageUrl = String.Empty,
@@ -145,16 +152,13 @@
         else
         {
             _operatingMode = OperatingMode.Editing;
-            var getUrl =$"{Configuration["TargetApi"]}/uservictual?userId={UserID}&victualId={Identifier}";
-            Logger.LogInformation("Sending GET:[{Url}]", getUrl);
-            var result = await Http.GetFromJsonAsync<Victual>(getUrl);
-            _editedEntry = result.ThrowIfNull(new Exception($"Victual with id:{Identifier} not found!"));
+            _editedEntry = await BackendCommunication.FetchVictualOfUser(UserId, Identifier, _injectedDependencies);
         }
     }
 
     private async Task LoadMeasurementUnits()
     {
-        var units = await BackendCommunication.FetchUnitsAsync(Http, Configuration, JsRuntime, Logger);
+        var units = await BackendCommunication.FetchUnitsAsync(_injectedDependencies);
         _units = units.ToList();
     }
 
@@ -172,7 +176,7 @@
     {
         if (_operatingMode == OperatingMode.Adding)
         {
-            await PostNewEntryAsync(_editedEntry);
+            await BackendCommunication.PostNewEntryAsync(_editedEntry, _injectedDependencies);
         }
         else
         {
@@ -183,32 +187,7 @@
 
     private async Task PutExistingEntryAsync(Victual editedEntry)
     {
-        await BackendCommunication.SendUpdateVictualAsync(Http, Configuration, JsRuntime, Logger, editedEntry);
-    }
-
-    private async Task PostNewEntryAsync(Victual editedEntry)
-    {
-        Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId);
-        Console.WriteLine($"Adding Entry with id {editedEntry.VictualId}");
-
-        var postUrl = $"{Configuration["TargetApi"]}/createvictual";
-        var postPayload = JsonSerializer.Serialize(editedEntry, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = null,
-            PropertyNameCaseInsensitive = false
-        });
-        Logger.LogInformation("Sending POST:[{Url}]", postUrl);
-        using var request = await new HttpRequestMessage(HttpMethod.Post, postUrl)
-            .AppendAuthorizationHeader(await Auth.Authentication.ReadIdToken(JsRuntime, Logger));
-        using var stringContent = new StringContent(postPayload, Encoding.UTF8, "application/json");
-        request.Content = stringContent;
-        using var response = await Http
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
-            .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        Logger.LogInformation("POST-Response:\n{Response}", JsonSerializer.Serialize(response));
-        Logger.LogInformation("Response code: {Code}", response.StatusCode);
-        Logger.LogInformation("Response content: {Content}", await response.Content.ReadAsStringAsync());
+        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, editedEntry);
     }
 
     private async Task UploadImage(InputFileChangeEventArgs e)

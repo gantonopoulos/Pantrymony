@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 namespace Pantrymony.Common;
@@ -7,13 +6,9 @@ namespace Pantrymony.Common;
 
 internal class PageInjectedDependencies
 {
-    [Inject]
-    public HttpClient? HttpClient { get; private set; }
-    [Inject]
-    public IConfiguration? Configuration { get; private set; }
-    [Inject]
-    public IJSRuntime? JsRuntime { get; private set; }
-    [Inject]
-    public ILogger? Logger { get; private set; }
+    public HttpClient? HttpClient { get;  set; }
+    public IConfiguration? Configuration { get;  set; }
+    public IJSRuntime? JScriptRuntime { get; set; }
+    public ILogger? Logger { get;  set; }
 }
 
