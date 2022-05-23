@@ -128,7 +128,7 @@
     [Parameter]
     public string Identifier { get; set; }
 
-    private IBrowserFile _selectedVitualImage;
+    private IBrowserFile _selectedVictualImage;
 
     private OperatingMode _operatingMode = OperatingMode.None;
     private Victual _editedEntry = new();
@@ -183,7 +183,7 @@
     {
         if (_operatingMode == OperatingMode.Adding)
         {
-            await BackendCommunication.PostNewEntryAsync(_editedEntry, _injectedDependencies);
+            await CreateNewEntryAsync(_editedEntry);
         }
         else
         {
@@ -197,15 +197,33 @@
         await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, editedEntry);
     }
 
+    private async Task CreateNewEntryAsync(Victual newEntry)
+    {
+        try
+        {
+            await BackendCommunication.PostNewEntryAsync(newEntry, _injectedDependencies);
+            if (_selectedVictualImage is null)
+                return;
+            await using var imageStream = _selectedVictualImage.OpenReadStream();
+            using var memStream = new MemoryStream();
+            await imageStream.CopyToAsync(memStream);
+            await BackendCommunication.PostImageAsync(_editedEntry, memStream.ToArray(), _injectedDependencies);
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+    
     private async Task VictualImageChanged(InputFileChangeEventArgs fileChangeEventArgs)
     {
         try
         {
             _editedEntry.ImageUrl = string.Empty;
             var imageFile = fileChangeEventArgs.File;
-            _selectedVitualImage = 
-                await imageFile.RequestImageFileAsync("image/jpg", 300, 500);
-            var imageStream = _selectedVitualImage.OpenReadStream();
+            _selectedVictualImage = 
+                await imageFile.RequestImageFileAsync("image/png", 300, 500);
+            await using var imageStream = _selectedVictualImage.OpenReadStream();
             var dotnetImageStream = new DotNetStreamReference(imageStream);
             var jsUtils = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/util.js");
             await jsUtils.InvokeVoidAsync("setImageUsingStreaming", "VictualImage", dotnetImageStream);

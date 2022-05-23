@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Components.Forms;
 using Pantrymony.Auth.Extensions;
 using Pantrymony.Common;
 using Pantrymony.Extensions;
@@ -149,7 +150,7 @@ internal static class BackendCommunication
 
     public static async Task PostNewEntryAsync(Victual editedEntry, PageInjectedDependencies injectedDependencies)
     {
-        injectedDependencies.Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId);
+        injectedDependencies.Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId.ToString());
 
         var postUrl = $"{injectedDependencies.Configuration["TargetApi"]}/createvictual";
         var postPayload = JsonSerializer.Serialize(editedEntry, new JsonSerializerOptions
@@ -166,11 +167,22 @@ internal static class BackendCommunication
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        injectedDependencies.Logger.LogInformation("POST-Response:\n{Response}", JsonSerializer.Serialize(response));
-        injectedDependencies.Logger.LogInformation("Response code: {Code}", response.StatusCode);
-        injectedDependencies.Logger.LogInformation("Response content: {Content}",
-            await response.Content.ReadAsStringAsync());
     }
 
 
+    public static async Task PostImageAsync(
+        Victual imageOwner, 
+        byte[] selectedVictualImage, 
+        PageInjectedDependencies injectedDependencies)
+    {
+        var postUrl = $"{injectedDependencies.Configuration["TargetApi"]}/uploadImage?userId={imageOwner.UserId}&victualId={imageOwner.VictualId}";
+        injectedDependencies.Logger.LogInformation("Sending POST:[{Url}]", postUrl);
+        using var request = await new HttpRequestMessage(HttpMethod.Post, postUrl)
+            .AppendAuthorizationHeader(injectedDependencies);
+        request.Content = new ByteArrayContent(selectedVictualImage);
+        using var response = await injectedDependencies.HttpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
 }
