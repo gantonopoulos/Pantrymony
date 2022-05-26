@@ -11,9 +11,7 @@ namespace Pantrymony.Communication;
 
 internal static class BackendCommunication
 {
-    public static async Task SendUpdateVictualAsync(
-        PageInjectedDependencies injectedDependencies,
-        Victual editedEntry)
+    public static async Task SendUpdateVictualAsync(Victual editedEntry, PageInjectedDependencies injectedDependencies)
     {
         string updateUrl =
             $"{injectedDependencies.Configuration["TargetApi"]}/updatevictual?userId={editedEntry.UserId}&victualId={editedEntry.VictualId}";
@@ -74,7 +72,7 @@ internal static class BackendCommunication
         }
     }
     
-    public static async Task<Victual> FetchVictualOfUser(
+    public static async Task<Victual> FetchVictualOfUserAsync(
         string userId, 
         string victualId, 
         PageInjectedDependencies injectedDependencies)
@@ -83,18 +81,11 @@ internal static class BackendCommunication
         {
             var getUrl =
                 $"{injectedDependencies.Configuration["TargetApi"]}/uservictual?userId={userId}&victualId={victualId}";
-            injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
-            var requestMsg =
-                await new HttpRequestMessage(HttpMethod.Get, getUrl).AppendAuthorizationHeader(injectedDependencies);
-            var response = await injectedDependencies.HttpClient.SendAsync(requestMsg);
-
-            response.EnsureSuccessStatusCode();
-            var responseContent = await response.Content.ReadAsStringAsync();
-            injectedDependencies.Logger.LogInformation("API responded with: {Response}:\n{Content}", response,
-                responseContent);
-            return (await response.Content.ReadFromJsonAsync<List<Victual>>())
-                .ThrowIfNull(new Exception($"Victual with id:{victualId} not found!"))
-                .Single();
+            var entries = await FetchVictualsAsync(getUrl, injectedDependencies);
+            
+            var result = entries.Single();
+            result.ImageUrl = await GetDownloadUrlAsync(result, injectedDependencies);
+            return result;
         }
         catch (Exception e)
         {
@@ -103,13 +94,35 @@ internal static class BackendCommunication
         }
     }
     
-    public static async Task<IEnumerable<Victual>> FetchVictualsAsync(
+    public static async Task<IEnumerable<Victual>> FetchVictualsOfUserAsync(
         string userId,  
         PageInjectedDependencies injectedDependencies)
     {
         try
         {
             var getUrl = $"{injectedDependencies.Configuration["TargetApi"]}/uservictuals?userId={userId}";
+            var entries = await FetchVictualsAsync(getUrl, injectedDependencies);
+            foreach (var entry in entries)
+            {
+                entry.ImageUrl = await GetDownloadUrlAsync(entry, injectedDependencies);
+            }
+                
+            return entries;
+
+        }
+        catch (Exception e)
+        {
+            injectedDependencies.Logger.LogError("Victuals could not be parsed!\n{Message}{Stack}", 
+                e.Message, 
+                e.StackTrace);
+            throw;
+        }
+    }
+
+    private static async Task<List<Victual>> FetchVictualsAsync(string getUrl, PageInjectedDependencies injectedDependencies)
+    {
+        try
+        {
             injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
             injectedDependencies.Logger.LogInformation("Fetching Victuals!");
 
@@ -117,22 +130,19 @@ internal static class BackendCommunication
                 .AppendAuthorizationHeader(injectedDependencies);
             var response = await injectedDependencies.HttpClient.SendAsync(requestMsg);
             injectedDependencies.Logger.LogInformation("API responded with: {Response}", response);
-            if (response.IsSuccessStatusCode)
-            {
-                var responseData = await response.Content.ReadFromJsonAsync<List<Victual>>();
-                var entries = responseData != null 
-                    ? responseData.OrderBy(entry => entry.Name).ToList() 
-                    : new List<Victual>();
-                entries.ForEach(Console.WriteLine);
-                return entries;
-            }
-
-            return new List<Victual>();
+            
+            if (!response.IsSuccessStatusCode) return new List<Victual>();
+            
+            var result = await response.Content.ReadFromJsonAsync<List<Victual>>();
+            result = result.ThrowIfNull(new Exception("Error while deserializing received victuals."));
+            return result;
         }
         catch (Exception e)
         {
-            injectedDependencies.Logger.LogError("Victuals could not be parsed!\n{Message}{Stack}", e.Message, e.StackTrace);
-            throw;
+            injectedDependencies.Logger.LogError("Victuals could not be parsed!\n{Message}{Stack}", 
+                e.Message, 
+                e.StackTrace);
+            return new List<Victual>();
         }
     }
 
@@ -150,7 +160,8 @@ internal static class BackendCommunication
 
     public static async Task PostNewEntryAsync(Victual editedEntry, PageInjectedDependencies injectedDependencies)
     {
-        injectedDependencies.Logger.LogInformation("Adding Entry with id {Identifier}", editedEntry.VictualId.ToString());
+        injectedDependencies.Logger.LogInformation("Adding Entry with id {Identifier}",
+            editedEntry.VictualId.ToString());
 
         var postUrl = $"{injectedDependencies.Configuration["TargetApi"]}/createvictual";
         var postPayload = JsonSerializer.Serialize(editedEntry, new JsonSerializerOptions
@@ -175,14 +186,86 @@ internal static class BackendCommunication
         byte[] selectedVictualImage, 
         PageInjectedDependencies injectedDependencies)
     {
-        var postUrl = $"{injectedDependencies.Configuration["TargetApi"]}/uploadImage?userId={imageOwner.UserId}&victualId={imageOwner.VictualId}";
-        injectedDependencies.Logger.LogInformation("Sending POST:[{Url}]", postUrl);
-        using var request = await new HttpRequestMessage(HttpMethod.Post, postUrl)
-            .AppendAuthorizationHeader(injectedDependencies);
+        var uploadUrl = await GetUploadUrlAsync(imageOwner, injectedDependencies);
+        await UploadImage(uploadUrl, selectedVictualImage, injectedDependencies);
+    }
+    
+    public static async Task DeleteImageAsync(Victual imageOwner, PageInjectedDependencies injectedDependencies)
+    {
+        var deleteUrl = await GetDeleteUrlAsync(imageOwner, injectedDependencies);
+        await DeleteImage(deleteUrl, injectedDependencies);
+    }
+
+    private static async Task UploadImage(string uploadUrl, byte[] selectedVictualImage,
+        PageInjectedDependencies injectedDependencies)
+    {
+        injectedDependencies.Logger.LogInformation("Sending PUT:[{@UploadUrl}]", uploadUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Put, uploadUrl);
         request.Content = new ByteArrayContent(selectedVictualImage);
         using var response = await injectedDependencies.HttpClient
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+    }
+    
+    private static async Task DeleteImage(string uploadUrl, PageInjectedDependencies injectedDependencies)
+    {
+        injectedDependencies.Logger.LogInformation("Sending PUT:[{@UploadUrl}]", uploadUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Delete, uploadUrl);
+        using var response = await injectedDependencies.HttpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+
+    private static async Task<string> GetUploadUrlAsync(Victual imageOwner, PageInjectedDependencies injectedDependencies)
+    {
+        var getUrl = $"{injectedDependencies.Configuration["TargetApi"]}/uploadImageUrl?imageKey={imageOwner.VictualId}";
+        injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+        using var request = await new HttpRequestMessage(HttpMethod.Get, getUrl)
+            .AppendAuthorizationHeader(injectedDependencies);
+        using var response = await injectedDependencies.HttpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
+    }
+    
+    private static async Task<string> GetDownloadUrlAsync(Victual imageOwner, PageInjectedDependencies injectedDependencies)
+    {
+        try
+        {
+            var getUrl = $"{injectedDependencies.Configuration["TargetApi"]}/downloadImageUrl?imageKey={imageOwner.VictualId}";
+            injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+            using var request = await new HttpRequestMessage(HttpMethod.Get, getUrl)
+                .AppendAuthorizationHeader(injectedDependencies);
+            using var response = await injectedDependencies.HttpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            string result = await response.Content.ReadAsStringAsync();
+            injectedDependencies.Logger.LogInformation("Got DownloadURL[{Url}]", result);
+            return result;
+        }
+        catch (Exception e)
+        {
+            injectedDependencies.Logger.LogError("Download url could not be retrieved\n{Message}{Stack}",
+                e.Message, e.StackTrace);
+            throw;
+        }
+    }
+    
+    private static async Task<string> GetDeleteUrlAsync(Victual imageOwner, PageInjectedDependencies injectedDependencies)
+    {
+        var getUrl = $"{injectedDependencies.Configuration["TargetApi"]}/deleteImageUrl?imageKey={imageOwner.VictualId}";
+        injectedDependencies.Logger.LogInformation("Sending GET:[{Url}]", getUrl);
+        using var request = await new HttpRequestMessage(HttpMethod.Get, getUrl)
+            .AppendAuthorizationHeader(injectedDependencies);
+        using var response = await injectedDependencies.HttpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
     }
 }

@@ -71,7 +71,7 @@
         _injectedDependencies.Configuration = Configuration;
 
         _entries = (await BackendCommunication
-            .FetchVictualsAsync(await GetLoggedInUserId(), _injectedDependencies)).ToList();
+            .FetchVictualsOfUserAsync(await GetLoggedInUserId(), _injectedDependencies)).ToList();
         _units = (await BackendCommunication.FetchUnitsAsync(_injectedDependencies)).ToList();
     }
 
@@ -97,14 +97,14 @@
     private async Task IncrementQuantity(Victual entry)
     {
         entry.Quantity++;
-        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
+        await BackendCommunication.SendUpdateVictualAsync(entry, _injectedDependencies);
         StateHasChanged();
     }
 
     private async Task DecrementQuantity(Victual entry)
     {
         entry.Quantity--;
-        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
+        await BackendCommunication.SendUpdateVictualAsync(entry, _injectedDependencies);
         StateHasChanged();
     }
 
@@ -119,6 +119,8 @@
         foreach (var entry in _selectedEntries)
         {
             await BackendCommunication.DeleteVictualAsync(entry, _injectedDependencies);
+            if(!string.IsNullOrEmpty(entry.ImageUrl))
+                await BackendCommunication.DeleteImageAsync(entry, _injectedDependencies);
         }
         _selectedEntries.Clear();
         await OnInitializedAsync();
@@ -155,7 +157,7 @@
         {
             if (obj.Value == null || !DateTime.TryParse(obj.Value.ToString(), out var updatedDate)) return;
             entry.Expires = updatedDate;
-            await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
+            await BackendCommunication.SendUpdateVictualAsync(entry, _injectedDependencies);
             StateHasChanged();
         }
         catch (Exception e)
@@ -174,7 +176,7 @@
         if(measurementUnit == null)
             return;
         entry.Unit = measurementUnit.Symbol;
-        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, entry);
+        await BackendCommunication.SendUpdateVictualAsync(entry, _injectedDependencies);
         StateHasChanged();
     }
 }

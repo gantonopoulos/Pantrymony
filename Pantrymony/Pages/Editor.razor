@@ -17,19 +17,23 @@
     <tr class="form-group">
         <td>
             <span class="col-form-label">Upload Image files</span>
-            <InputFile id="fileInput" OnChange="VictualImageChanged" accept=".png,.jpg,jpeg"/>
+            <InputFile id="fileInput" OnChange="OnVictualImageChanged" accept=".png,.jpg,jpeg"/>
         </td>
+         <td>
+             <button class="btn btn-outline-primary" @onclick="OnClearImage" disabled="@IsClearImageDisabled">Clear image</button>
+         </td>
         <td>
-            @if (!string.IsNullOrEmpty(_editedEntry.ImageUrl))
+            @if (string.IsNullOrEmpty(_downloadedImageUrl))
             {
                 <img id="VictualImage" alt="" src="">
             }
             else
             {
-                <img id="VictualImage" src = @_editedEntry.ImageUrl alt="">
+                <img id="VictualImage" src = @_downloadedImageUrl alt="">
             }
             
         </td>
+        
     </tr>
     <tr class="form-group">
         <td>
@@ -114,8 +118,6 @@
 
 
 @code {
-    
-
     private enum OperatingMode
     {
         Editing,
@@ -128,7 +130,9 @@
     [Parameter]
     public string Identifier { get; set; }
 
-    private IBrowserFile _selectedVictualImage;
+    private string _downloadedImageUrl = string.Empty;
+    
+    private IBrowserFile? _selectedVictualImage;
 
     private OperatingMode _operatingMode = OperatingMode.None;
     private Victual _editedEntry = new();
@@ -159,7 +163,8 @@
         else
         {
             _operatingMode = OperatingMode.Editing;
-            _editedEntry = await BackendCommunication.FetchVictualOfUser(UserId, Identifier, _injectedDependencies);
+            _editedEntry = await BackendCommunication.FetchVictualOfUserAsync(UserId, Identifier, _injectedDependencies);
+            _downloadedImageUrl = _editedEntry.ImageUrl;
         }
     }
 
@@ -183,43 +188,60 @@
     {
         if (_operatingMode == OperatingMode.Adding)
         {
-            await CreateNewEntryAsync(_editedEntry);
+            await CreateNewEntryAsync();
         }
         else
         {
-            await PutExistingEntryAsync(_editedEntry);
+            await UpdateExistingEntryAsync();
         }
         UriHelper.NavigateTo($"/");
     }
 
-    private async Task PutExistingEntryAsync(Victual editedEntry)
+    private async Task UpdateExistingEntryAsync()
     {
-        await BackendCommunication.SendUpdateVictualAsync(_injectedDependencies, editedEntry);
+        await BackendCommunication.SendUpdateVictualAsync(_editedEntry, _injectedDependencies);
+        
+        if (IsImageOfVictualUnchanged())
+            return;
+        
+        if(WasVictualImageCleared())
+            await BackendCommunication.DeleteImageAsync(_editedEntry, _injectedDependencies);
+
+        if (IsNewVictualImageSelected())
+        {
+            await UploadSelectedImage();
+        }
     }
 
-    private async Task CreateNewEntryAsync(Victual newEntry)
+    private async Task UploadSelectedImage()
+    {
+        await using var imageStream = _selectedVictualImage.OpenReadStream();
+        using var memStream = new MemoryStream();
+        await imageStream.CopyToAsync(memStream);
+        await BackendCommunication.PostImageAsync(_editedEntry, memStream.ToArray(), _injectedDependencies);
+    }
+
+    private async Task CreateNewEntryAsync()
     {
         try
         {
-            await BackendCommunication.PostNewEntryAsync(newEntry, _injectedDependencies);
-            if (_selectedVictualImage is null)
+            await BackendCommunication.PostNewEntryAsync(_editedEntry, _injectedDependencies);
+            if (IsNewVictualImageSelected())
                 return;
-            await using var imageStream = _selectedVictualImage.OpenReadStream();
-            using var memStream = new MemoryStream();
-            await imageStream.CopyToAsync(memStream);
-            await BackendCommunication.PostImageAsync(_editedEntry, memStream.ToArray(), _injectedDependencies);
+            await UploadSelectedImage();
         }
         catch (Exception ex)
         {
-
+            Logger.LogError("{Message}:{Stack}",ex.Message,ex.StackTrace);
+            throw;
         }
     }
     
-    private async Task VictualImageChanged(InputFileChangeEventArgs fileChangeEventArgs)
+    private async Task OnVictualImageChanged(InputFileChangeEventArgs fileChangeEventArgs)
     {
         try
         {
-            _editedEntry.ImageUrl = string.Empty;
+            _downloadedImageUrl = string.Empty;
             var imageFile = fileChangeEventArgs.File;
             _selectedVictualImage = 
                 await imageFile.RequestImageFileAsync("image/png", 300, 500);
@@ -250,5 +272,28 @@
             return;
         editedEntry.Unit = measurementUnit.Symbol;
     }
+
+    private bool IsImageOfVictualUnchanged()
+    {
+        return _selectedVictualImage is null && _downloadedImageUrl == _editedEntry.ImageUrl;
+    }
+
+    private bool WasVictualImageCleared()
+    {
+        return _downloadedImageUrl != _editedEntry.ImageUrl;
+    }
+
+    private bool IsNewVictualImageSelected()
+    {
+        return _selectedVictualImage is not null;
+    }
+
+    private void OnClearImage()
+    {
+        _selectedVictualImage = null;
+        _downloadedImageUrl = string.Empty;
+    }
+
+    private bool IsClearImageDisabled => _selectedVictualImage is null && string.IsNullOrEmpty(_downloadedImageUrl);
 
 }
