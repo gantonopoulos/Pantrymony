@@ -26,8 +26,6 @@
     <ul>
         @foreach (Victual pantryEntry in _entries)
         {
-            Logger.LogInformation("Rendering victuals:");
-            _entries.ForEach(entry=> Logger.LogInformation("{Victual}", entry));
             <tr class="form-group">
                 <td><input @key="pantryEntry" type="checkbox" @onclick="() => { EntrySelected(pantryEntry); }"/></td>
                 <td><span class="col-form-label">@pantryEntry.Name</span></td>
@@ -131,12 +129,10 @@
     {
         if (_selectedEntries.Contains(victual))
         {
-            Console.WriteLine($" Unselected [{victual.VictualId}]");
             _selectedEntries.Remove(victual);
         }
         else
         {
-            Console.WriteLine($"Selected [{victual.VictualId}]");
             _selectedEntries.Add(victual);
         }
     }

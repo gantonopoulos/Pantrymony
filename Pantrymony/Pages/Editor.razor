@@ -4,6 +4,7 @@
 @using Pantrymony.Extensions
 @using Pantrymony.Model
 @using Pantrymony.Common
+@using System.Net.Http.Headers
 @inject ILogger<Editor> Logger
 @inject HttpClient HttpClient
 @inject IConfiguration Configuration
@@ -17,11 +18,9 @@
     <tr class="form-group">
         <td>
             <span class="col-form-label">Upload Image files</span>
-            <InputFile id="fileInput" OnChange="OnVictualImageChanged" accept=".png,.jpg,jpeg"/>
+            <InputFile id="fileInput" OnChange="OnVictualImageChanged" accept=".png,.jpg,jpeg" hidden="true"></InputFile>
+            <button class="btn btn-outline-primary" @onclick="FileInputMockClicked">Select image</button>
         </td>
-         <td>
-             <button class="btn btn-outline-primary" @onclick="OnClearImage" disabled="@IsClearImageDisabled">Clear image</button>
-         </td>
         <td>
             @if (string.IsNullOrEmpty(_downloadedImageUrl))
             {
@@ -29,11 +28,17 @@
             }
             else
             {
-                <img id="VictualImage" src = @_downloadedImageUrl alt="">
+                <img id="VictualImage" src="@_downloadedImageUrl" alt="">
             }
-            
         </td>
-        
+    </tr>
+    <tr>
+        <td>
+
+        </td>
+        <td>
+            <button class="btn btn-outline-primary" @onclick="OnClearImageAsync" disabled="@IsClearImageDisabled">Clear image</button>
+        </td>
     </tr>
     <tr class="form-group">
         <td>
@@ -115,8 +120,6 @@
     </tr>
 </table>
 
-
-
 @code {
     private enum OperatingMode
     {
@@ -125,10 +128,12 @@
         None
     }
     
+
     [Parameter]
     public string UserId { get; set; }
     [Parameter]
     public string Identifier { get; set; }
+
 
     private string _downloadedImageUrl = string.Empty;
     
@@ -165,6 +170,7 @@
             _operatingMode = OperatingMode.Editing;
             _editedEntry = await BackendCommunication.FetchVictualOfUserAsync(UserId, Identifier, _injectedDependencies);
             _downloadedImageUrl = _editedEntry.ImageUrl;
+            Logger.LogInformation("Received Download-Url:{Url}", _downloadedImageUrl);
         }
     }
 
@@ -209,16 +215,8 @@
 
         if (IsNewVictualImageSelected())
         {
-            await UploadSelectedImage();
+            await BackendCommunication.PostImageAsync(_editedEntry, _selectedVictualImage, _injectedDependencies);
         }
-    }
-
-    private async Task UploadSelectedImage()
-    {
-        await using var imageStream = _selectedVictualImage.OpenReadStream();
-        using var memStream = new MemoryStream();
-        await imageStream.CopyToAsync(memStream);
-        await BackendCommunication.PostImageAsync(_editedEntry, memStream.ToArray(), _injectedDependencies);
     }
 
     private async Task CreateNewEntryAsync()
@@ -227,8 +225,9 @@
         {
             await BackendCommunication.PostNewEntryAsync(_editedEntry, _injectedDependencies);
             if (IsNewVictualImageSelected())
-                return;
-            await UploadSelectedImage();
+            {
+                await BackendCommunication.PostImageAsync(_editedEntry, _selectedVictualImage, _injectedDependencies);
+            }
         }
         catch (Exception ex)
         {
@@ -249,6 +248,7 @@
             var dotnetImageStream = new DotNetStreamReference(imageStream);
             var jsUtils = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/util.js");
             await jsUtils.InvokeVoidAsync("setImageUsingStreaming", "VictualImage", dotnetImageStream);
+
         }
         catch (Exception ex)
         {
@@ -288,12 +288,20 @@
         return _selectedVictualImage is not null;
     }
 
-    private void OnClearImage()
+    private async void OnClearImageAsync()
     {
         _selectedVictualImage = null;
         _downloadedImageUrl = string.Empty;
+        var dotnetImageStream = new DotNetStreamReference(Stream.Null);
+        var jsUtils = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/util.js");
+        await jsUtils.InvokeVoidAsync("setImageUsingStreaming", "VictualImage", dotnetImageStream);
     }
 
     private bool IsClearImageDisabled => _selectedVictualImage is null && string.IsNullOrEmpty(_downloadedImageUrl);
 
+    private async void FileInputMockClicked(MouseEventArgs obj)
+    {
+        var jsUtils = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/clickFileInput.js");
+        await jsUtils.InvokeVoidAsync("clickFileInput", "fileInput");
+    }
 }
