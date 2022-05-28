@@ -116,6 +116,7 @@
     <tr class="form-group">
         <td>
             <button class="btn btn-outline-primary" @onclick="SaveChangesAsync">Save</button>
+            <button class="btn btn-outline-primary" @onclick="OnEditCancel">Cancel</button>
         </td>
     </tr>
 </table>
@@ -182,11 +183,15 @@
 
     private void IncrementQuantity(Victual victual)
     {
+        if(victual.Quantity == ushort.MaxValue)
+            return;
         victual.Quantity++;
     }
 
     private void DecrementQuantity(Victual victual)
     {
+        if(victual.Quantity == ushort.MinValue)
+            return;
         victual.Quantity--;
     }
 
@@ -304,4 +309,10 @@
         var jsUtils = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./scripts/clickFileInput.js");
         await jsUtils.InvokeVoidAsync("clickFileInput", "fileInput");
     }
+
+    private void OnEditCancel(MouseEventArgs obj)
+    {
+        UriHelper.NavigateTo($"/");
+    }
+
 }

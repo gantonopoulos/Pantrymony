@@ -94,6 +94,9 @@
 
     private async Task IncrementQuantity(Victual entry)
     {
+        if(entry.Quantity == ushort.MaxValue)
+            return;
+
         entry.Quantity++;
         await BackendCommunication.SendUpdateVictualAsync(entry, _injectedDependencies);
         StateHasChanged();
@@ -101,7 +104,10 @@
 
     private async Task DecrementQuantity(Victual entry)
     {
-        entry.Quantity--;
+        if(entry.Quantity == ushort.MinValue)
+            return;
+
+        entry.Quantity --;
         await BackendCommunication.SendUpdateVictualAsync(entry, _injectedDependencies);
         StateHasChanged();
     }
