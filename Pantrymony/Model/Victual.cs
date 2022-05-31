@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Pantrymony.Model;
 
 public class Victual

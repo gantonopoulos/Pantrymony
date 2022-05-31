@@ -23,4 +23,9 @@
       <Folder Include="wwwroot\scripts\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="wwwroot\_content\Blazor.Extensions.Logging\BrowserConsoleLogger.js" />
+      <_ContentIncludedByDefault Remove="wwwroot\_content\Microsoft.AspNetCore.Components.WebAssembly.Authentication\AuthenticationService.js" />
+    </ItemGroup>
+
 </Project>
